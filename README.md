@@ -13,6 +13,7 @@ A comprehensive Python tool for checking firewall ports, detecting L7 protection
 - 🔒 **SSL/TLS Certificate Analysis**: Comprehensive certificate chain analysis and validation
 - 🏛️ **Certificate Authority Identification**: "Who signed my cert?" functionality with trust chain visualization
 - ⚠️ **Missing Intermediate Detection**: Identify incomplete certificate chains affecting browser compatibility
+- 🔑 **Hybrid Identity Detection**: Check for Azure AD/ADFS integration and federation endpoints (NEW!)
 - 🌐 **DNS Trace**: Advanced DNS CNAME chain analysis and IP protection detection
 - 🚀 **Async Support**: High-performance concurrent scanning
 - 📊 **Rich Output**: Beautiful terminal output with progress bars and certificate analysis tables
@@ -96,6 +97,9 @@ port-checker l7-check example.com --trace-dns
 
 # Full scan with L7 detection
 port-checker full-scan example.com
+
+# Check for hybrid identity and ADFS (NEW!)
+port-checker hybrid-identity example.com
 
 # Scan multiple targets
 port-checker scan example.com google.com --output results.json
@@ -216,6 +220,237 @@ async def check_mtls():
 
 asyncio.run(check_mtls())
 ```
+
+# Hybrid Identity Detection
+
+## Overview
+
+The Hybrid Identity feature detects Azure AD/ADFS integration and federation endpoints for domains. It uses the same method as Azure Portal to discover ADFS endpoints by querying the Azure AD realm API, making it highly reliable for identifying hybrid identity configurations.
+
+This is essential for:
+
+- **🔍 Security Audits**: Identify federation services and authentication mechanisms
+- **📋 Migration Planning**: Assess current identity setup before cloud migrations
+- **🛠️ Troubleshooting**: Verify ADFS accessibility and configuration
+- **🎯 Identity Discovery**: Discover authentication mechanisms for domains
+- **☁️ Cloud Integration**: Understand Azure AD and on-premises integration
+
+## What It Checks
+
+| Check | Description |
+|-------|-------------|
+| 🎯 **Azure AD Flow** | Queries Azure AD realm API (most reliable method - same as Azure Portal) |
+| 🔒 **ADFS Endpoints** | Checks `/adfs/ls` and related paths |
+| 📜 **Federation Metadata** | WS-Federation metadata endpoints |
+| ☁️ **Azure AD Integration** | Redirects to Microsoft login |
+| 🔑 **OpenID Config** | `.well-known/openid-configuration` |
+| 🌐 **DNS Records** | Microsoft verification, MX records, ADFS subdomains |
+
+## Command Line Usage
+
+### Basic Hybrid Identity Checking
+
+```bash
+# Check single domain for hybrid identity
+port-checker hybrid-identity example.com
+
+# Check multiple domains
+port-checker hybrid-identity company1.com company2.com company3.com
+
+# From file
+port-checker hybrid-identity $(cat domains.txt)
+
+# With verbose output for detailed analysis
+port-checker hybrid-identity example.com --verbose
+
+# Save results to JSON
+port-checker hybrid-identity example.com --output hybrid-results.json
+```
+
+### Advanced Options
+
+```bash
+# Custom timeout (useful for slow networks)
+port-checker hybrid-identity example.com --timeout 15
+
+# Control concurrency for batch checks
+port-checker hybrid-identity domain1.com domain2.com --concurrent 5
+
+# Comprehensive check with all options
+port-checker hybrid-identity example.com \
+  --verbose \
+  --timeout 15 \
+  --output results.json
+```
+
+### Docker Usage
+
+```bash
+# Basic hybrid identity check
+docker run --rm htunnthuthu/simple-port-checker:latest hybrid-identity example.com
+
+# Multiple domains with output
+docker run --rm -v $(pwd):/app/output \
+  htunnthuthu/simple-port-checker:latest \
+  hybrid-identity company1.com company2.com \
+  --output /app/output/hybrid-results.json \
+  --verbose
+```
+
+## Python API Usage
+
+```python
+import asyncio
+from simple_port_checker import HybridIdentityChecker
+
+async def check_hybrid_identity():
+    """Basic hybrid identity check."""
+    checker = HybridIdentityChecker(timeout=15.0)
+    
+    # Check single domain
+    result = await checker.check("example.com")
+    
+    print(f"Domain: {result.fqdn}")
+    print(f"Hybrid Identity: {'✅ Detected' if result.has_hybrid_identity else '❌ Not Found'}")
+    
+    if result.has_adfs:
+        print(f"\nADFS Configuration:")
+        print(f"  Endpoint: {result.adfs_endpoint}")
+        print(f"  Status: {result.adfs_status_code}")
+    
+    if result.federation_metadata_found:
+        print("  Federation Metadata: ✅ Found")
+    
+    if result.azure_ad_detected:
+        print("  Azure AD Integration: ✅ Detected")
+    
+    if result.openid_config_found:
+        print("  OpenID Configuration: ✅ Found")
+    
+    # DNS indicators
+    if result.dns_records:
+        print(f"\nDNS Records:")
+        if 'microsoft_verification' in result.dns_records:
+            print("  Microsoft Verification: ✅ Found")
+        if 'microsoft_mail' in result.dns_records:
+            print("  Microsoft 365 Mail: ✅ Detected")
+        if 'adfs_subdomains' in result.dns_records:
+            print(f"  ADFS Subdomains: {', '.join(result.dns_records['adfs_subdomains'])}")
+    
+    print(f"\nResponse Time: {result.response_time:.2f}s")
+    
+    # Error handling
+    if result.error:
+        print(f"Error: {result.error}")
+
+async def batch_hybrid_identity_check():
+    """Check multiple domains for hybrid identity."""
+    checker = HybridIdentityChecker()
+    
+    domains = [
+        "company1.com",
+        "company2.com",
+        "company3.com",
+    ]
+    
+    print("Checking hybrid identity for multiple domains...\n")
+    results = await checker.batch_check(domains, max_concurrent=5)
+    
+    # Summary statistics
+    hybrid_count = sum(1 for r in results if r.has_hybrid_identity)
+    adfs_count = sum(1 for r in results if r.has_adfs)
+    
+    print(f"\nSummary:")
+    print(f"  Total Domains: {len(results)}")
+    print(f"  Hybrid Identity Found: {hybrid_count}")
+    print(f"  ADFS Endpoints Found: {adfs_count}")
+    
+    # Detailed results
+    print(f"\nDetailed Results:")
+    for result in results:
+        status = "✅" if result.has_hybrid_identity else "❌"
+        adfs = f" (ADFS: {result.adfs_endpoint})" if result.adfs_endpoint else ""
+        print(f"  {status} {result.fqdn}{adfs}")
+
+async def production_hybrid_identity_check():
+    """Production-ready hybrid identity checking with error handling."""
+    checker = HybridIdentityChecker(timeout=10.0)
+    
+    domains = ["example.com", "test.com", "company.com"]
+    
+    results = []
+    for domain in domains:
+        try:
+            result = await checker.check(domain)
+            results.append(result)
+            
+            if result.error:
+                print(f"❌ {domain}: {result.error}")
+                continue
+            
+            if result.has_hybrid_identity:
+                print(f"✅ {domain}: Hybrid Identity Detected")
+                if result.adfs_endpoint:
+                    print(f"   ADFS: {result.adfs_endpoint}")
+            else:
+                print(f"ℹ️  {domain}: Cloud-only (no hybrid identity)")
+                
+        except Exception as e:
+            print(f"❌ {domain}: Exception - {e}")
+    
+    return results
+
+# Run examples
+asyncio.run(check_hybrid_identity())
+asyncio.run(batch_hybrid_identity_check())
+asyncio.run(production_hybrid_identity_check())
+```
+
+## Key Innovation
+
+**Uses the same method as Azure Portal to discover ADFS endpoints!**
+
+When you login to Azure Portal with `user@domain.com`:
+1. Portal checks: `login.microsoftonline.com/common/userrealm/user@domain.com`
+2. Gets ADFS endpoint from Azure AD configuration
+3. Redirects to that ADFS endpoint
+
+This tool does the **exact same thing** ✨, making it the most reliable method for ADFS discovery.
+
+## Common Results
+
+### Hybrid Identity Found
+```
+Status: ✅ Hybrid Identity Detected
+ADFS Endpoint: ✅ Found
+  Endpoint URL: https://adfs.company.com/adfs/ls
+  Status Code: 200
+Azure AD Integration: ✅ Detected
+Federation Metadata: ✅ Found
+```
+
+### Cloud-Only (No Hybrid)
+```
+Status: ⚠️  No Hybrid Identity Found
+ADFS Endpoint: ❌ Not Found
+Federation Metadata: ❌ Not Found
+Azure AD Integration: ❌ Not Detected
+```
+
+## Use Cases
+
+1. **Security Audits**: Identify all domains with federation services
+2. **Migration Planning**: Assess current identity infrastructure before migrations
+3. **Troubleshooting**: Verify ADFS endpoints are accessible
+4. **Compliance**: Ensure identity configurations meet requirements
+5. **Discovery**: Map out authentication mechanisms across multiple domains
+
+## Related Documentation
+
+- Quick Reference: `HYBRID_IDENTITY_QUICKREF.md`
+- Implementation Details: `IMPLEMENTATION_HYBRID_IDENTITY.md`
+- Full API Docs: `docs/hybrid-identity.md`
+- API Reference: `docs/api.md`
 
 # mTLS Authentication Checking
 
@@ -885,6 +1120,40 @@ Options:
   --show-pem / --no-show-pem      Show certificate in PEM format
   -v, --verbose                   Enable verbose output
 ```
+
+### `port-checker hybrid-identity` (NEW!)
+Check for hybrid identity setup (Azure AD/ADFS integration).
+
+This command discovers ADFS endpoints using the **same method as Azure Portal** - by querying Azure AD's user realm API. This is much more reliable than guessing ADFS URLs!
+
+```bash
+port-checker hybrid-identity TARGET [TARGET...] [OPTIONS]
+
+Options:
+  -t, --timeout INTEGER           Request timeout in seconds (default: 10)
+  -o, --output TEXT               Output file (JSON format)
+  -v, --verbose                   Enable verbose output with DNS details
+  -c, --concurrent INTEGER        Maximum concurrent checks (default: 10)
+
+Examples:
+  # Check single domain
+  port-checker hybrid-identity example.com
+  
+  # Check multiple domains with verbose output
+  port-checker hybrid-identity domain1.com domain2.com --verbose
+  
+  # Batch check with output
+  port-checker hybrid-identity $(cat domains.txt) --output results.json
+```
+
+**What it checks:**
+- ✅ **ADFS endpoints via Azure AD login flow** (most reliable - same as portal.azure.com)
+- ✅ Federation metadata endpoints
+- ✅ Azure AD integration and redirects
+- ✅ OpenID Connect configuration
+- ✅ DNS records for Microsoft services
+
+See [docs/hybrid-identity.md](docs/hybrid-identity.md) for detailed documentation.
 
 ## Configuration
 

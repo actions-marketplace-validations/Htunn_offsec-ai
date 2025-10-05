@@ -30,6 +30,7 @@ from .core.port_scanner import PortChecker, ScanConfig
 from .core.l7_detector import L7Detector
 from .core.mtls_checker import MTLSChecker
 from .core.cert_analyzer import CertificateAnalyzer
+from .core.hybrid_identity_checker import HybridIdentityChecker, HybridIdentityResult
 from .models.scan_result import ScanResult, BatchScanResult
 from .models.l7_result import L7Result, BatchL7Result
 from .models.mtls_result import MTLSResult, BatchMTLSResult
@@ -950,6 +951,61 @@ def cert_info(target, port, timeout, output, show_pem, verbose):
     asyncio.run(_run_certificate_info_analysis(target, port, timeout, output, show_pem, verbose))
 
 
+@main.command("hybrid-identity")
+@click.argument("targets", nargs=-1, required=True)
+@click.option("--timeout", "-t", default=10, help="Request timeout in seconds")
+@click.option("--output", "-o", help="Output file (JSON format)")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.option("--concurrent", "-c", default=10, help="Maximum concurrent checks")
+def hybrid_identity(targets, timeout, output, verbose, concurrent):
+    """
+    Check if FQDNs have hybrid identity setup (Azure AD/ADFS integration).
+    
+    This command checks for:
+    - ADFS endpoints (/adfs/ls)
+    - Federation metadata
+    - Azure AD integration
+    - OpenID Connect configuration
+    - DNS records indicating Microsoft services
+    
+    Examples:
+    \b
+        # Check single domain
+        port-checker hybrid-identity example.com
+        
+        # Check multiple domains
+        port-checker hybrid-identity domain1.com domain2.com domain3.com
+        
+        # Batch check with output
+        port-checker hybrid-identity $(cat domains.txt) --output results.json
+        
+        # Verbose output with DNS details
+        port-checker hybrid-identity company.com --verbose
+    
+    The tool will identify:
+    - Hybrid identity deployments
+    - ADFS federation services
+    - Azure AD integration
+    - Microsoft 365 mail services
+    - Domain verification records
+    """
+    
+    console.print(
+        f"[blue]🔍 Checking hybrid identity for {len(targets)} domain(s)[/blue]"
+    )
+    console.print(f"[yellow]Timeout: {timeout}s[/yellow]")
+    
+    if verbose:
+        console.print("[yellow]Verbose mode: Detailed DNS and endpoint information will be shown[/yellow]")
+    
+    # Run hybrid identity check
+    asyncio.run(
+        _run_hybrid_identity_check(
+            list(targets), timeout, output, verbose, concurrent
+        )
+    )
+
+
 async def _run_certificate_analysis(target: str, port: int, timeout: int, output: Optional[str], 
                                    verify_hostname: bool, verbose: bool):
     """Run certificate analysis."""
@@ -1799,3 +1855,185 @@ def _display_mtls_metrics(metrics: Dict[str, Any]):
         metrics_table.add_row("Handshake Failures", str(metrics.get('handshake_failures', 0)))
         
         console.print(metrics_table)
+
+
+async def _run_hybrid_identity_check(
+    targets: List[str],
+    timeout: int,
+    output: Optional[str],
+    verbose: bool,
+    concurrent: int,
+):
+    """Run hybrid identity check with progress display."""
+    
+    checker = HybridIdentityChecker(timeout=timeout)
+    
+    start_time = time.time()
+    results = []
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        
+        check_task = progress.add_task("Checking hybrid identity...", total=len(targets))
+        
+        # Process in batches for concurrent limit
+        batch_size = concurrent
+        for i in range(0, len(targets), batch_size):
+            batch = targets[i:i+batch_size]
+            batch_results = await checker.batch_check(batch)
+            results.extend(batch_results)
+            
+            # Display individual results if verbose
+            if verbose:
+                for result in batch_results:
+                    _display_hybrid_identity_result(result)
+            
+            progress.update(check_task, advance=len(batch))
+    
+    total_time = time.time() - start_time
+    
+    # Display summary
+    _display_hybrid_identity_summary(results, total_time)
+    
+    # Save output if requested
+    if output:
+        output_data = {
+            "scan_time": datetime.now().isoformat(),
+            "total_time": total_time,
+            "total_targets": len(results),
+            "results": [r.to_dict() for r in results]
+        }
+        with open(output, "w") as f:
+            json.dump(output_data, f, indent=2)
+        console.print(f"\n[green]✅ Results saved to {output}[/green]")
+
+
+def _display_hybrid_identity_result(result: HybridIdentityResult):
+    """Display hybrid identity check result for a single domain."""
+    
+    # Create result table
+    table = Table(title=f"🔐 Hybrid Identity Check - {result.fqdn}", show_header=True)
+    table.add_column("Property", style="cyan", width=25)
+    table.add_column("Value", style="white")
+    
+    # Overall status
+    if result.error:
+        table.add_row("Status", f"[red]❌ Error: {result.error}[/red]")
+    elif result.has_hybrid_identity:
+        table.add_row("Status", "[green]✅ Hybrid Identity Detected[/green]")
+    else:
+        table.add_row("Status", "[yellow]⚠️  No Hybrid Identity Found[/yellow]")
+    
+    # ADFS Detection
+    if result.has_adfs:
+        table.add_row("ADFS Endpoint", f"[green]✅ Found[/green]")
+        if result.adfs_endpoint:
+            table.add_row("  Endpoint URL", result.adfs_endpoint)
+        if result.adfs_status_code:
+            table.add_row("  Status Code", str(result.adfs_status_code))
+    else:
+        table.add_row("ADFS Endpoint", "[red]❌ Not Found[/red]")
+    
+    # Federation Metadata
+    if result.federation_metadata_found:
+        table.add_row("Federation Metadata", "[green]✅ Found[/green]")
+    else:
+        table.add_row("Federation Metadata", "[red]❌ Not Found[/red]")
+    
+    # Azure AD Integration
+    if result.azure_ad_detected:
+        table.add_row("Azure AD Integration", "[green]✅ Detected[/green]")
+    else:
+        table.add_row("Azure AD Integration", "[red]❌ Not Detected[/red]")
+    
+    # OpenID Connect
+    if result.openid_config_found:
+        table.add_row("OpenID Configuration", "[green]✅ Found[/green]")
+    else:
+        table.add_row("OpenID Configuration", "[red]❌ Not Found[/red]")
+    
+    # DNS Records
+    if result.dns_records:
+        dns_info = []
+        if result.dns_records.get('A'):
+            dns_info.append(f"A: {len(result.dns_records['A'])} records")
+        if result.dns_records.get('CNAME'):
+            dns_info.append(f"CNAME: {', '.join(result.dns_records['CNAME'][:2])}")
+        if result.dns_records.get('microsoft_verification'):
+            dns_info.append("[green]MS Verification ✓[/green]")
+        if result.dns_records.get('microsoft_mail'):
+            dns_info.append("[green]MS Mail ✓[/green]")
+        if result.dns_records.get('adfs_subdomains'):
+            dns_info.append(f"ADFS subdomains: {', '.join(result.dns_records['adfs_subdomains'])}")
+        
+        if dns_info:
+            table.add_row("DNS Records", "\n".join(dns_info))
+    
+    # Response time
+    table.add_row("Response Time", f"{result.response_time:.2f}s")
+    
+    console.print(table)
+    console.print()
+
+
+def _display_hybrid_identity_summary(results: List[HybridIdentityResult], duration: float):
+    """Display summary of hybrid identity check results."""
+    
+    # Count different result types
+    total = len(results)
+    has_hybrid = sum(1 for r in results if r.has_hybrid_identity)
+    has_adfs = sum(1 for r in results if r.has_adfs)
+    has_federation = sum(1 for r in results if r.federation_metadata_found)
+    has_azure_ad = sum(1 for r in results if r.azure_ad_detected)
+    has_openid = sum(1 for r in results if r.openid_config_found)
+    errors = sum(1 for r in results if r.error)
+    
+    # Create summary table
+    summary_table = Table(title="🔐 Hybrid Identity Check Summary", show_header=True)
+    summary_table.add_column("Metric", style="cyan")
+    summary_table.add_column("Count", style="white", justify="right")
+    summary_table.add_column("Percentage", style="yellow", justify="right")
+    
+    summary_table.add_row("Total Domains", str(total), "100%")
+    summary_table.add_row("Hybrid Identity Found", str(has_hybrid), f"{(has_hybrid/total)*100:.1f}%" if total > 0 else "0%")
+    summary_table.add_row("ADFS Detected", str(has_adfs), f"{(has_adfs/total)*100:.1f}%" if total > 0 else "0%")
+    summary_table.add_row("Federation Metadata", str(has_federation), f"{(has_federation/total)*100:.1f}%" if total > 0 else "0%")
+    summary_table.add_row("Azure AD Integration", str(has_azure_ad), f"{(has_azure_ad/total)*100:.1f}%" if total > 0 else "0%")
+    summary_table.add_row("OpenID Config", str(has_openid), f"{(has_openid/total)*100:.1f}%" if total > 0 else "0%")
+    summary_table.add_row("Errors", str(errors), f"{(errors/total)*100:.1f}%" if total > 0 else "0%")
+    
+    console.print(summary_table)
+    console.print(f"\n[blue]✅ Scan completed in {duration:.2f} seconds[/blue]")
+    
+    # Show notable findings
+    if has_hybrid > 0:
+        console.print(f"\n[green]✅ {has_hybrid} domain(s) have hybrid identity setup[/green]")
+    
+    if has_adfs > 0:
+        console.print(f"[green]🔒 {has_adfs} domain(s) have ADFS endpoints[/green]")
+    
+    if has_azure_ad > 0:
+        console.print(f"[blue]☁️  {has_azure_ad} domain(s) integrate with Azure AD[/blue]")
+    
+    # Show domains with hybrid identity
+    if has_hybrid > 0:
+        console.print("\n[cyan]Domains with Hybrid Identity:[/cyan]")
+        for result in results:
+            if result.has_hybrid_identity:
+                indicators = []
+                if result.has_adfs:
+                    indicators.append("ADFS")
+                if result.federation_metadata_found:
+                    indicators.append("Federation")
+                if result.azure_ad_detected:
+                    indicators.append("Azure AD")
+                if result.openid_config_found:
+                    indicators.append("OpenID")
+                console.print(f"  • {result.fqdn} - {', '.join(indicators)}")
+

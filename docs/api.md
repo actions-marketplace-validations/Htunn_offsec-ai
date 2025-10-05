@@ -12,7 +12,7 @@ pip install simple-port-checker
 
 ```python
 import asyncio
-from simple_port_checker import PortChecker, L7Detector, CertificateAnalyzer, MTLSChecker
+from simple_port_checker import PortChecker, L7Detector, CertificateAnalyzer, MTLSChecker, HybridIdentityChecker
 
 async def main():
     # Basic port scanning
@@ -33,6 +33,14 @@ async def main():
     print(f"Issuer: {cert_chain.server_cert.issuer}")
     print(f"Valid: {cert_chain.server_cert.is_valid_now}")
     print(f"Chain Complete: {cert_chain.chain_complete}")
+    
+    # Hybrid identity detection
+    hybrid_checker = HybridIdentityChecker()
+    hybrid_result = await hybrid_checker.check("example.com")
+    if hybrid_result.has_hybrid_identity:
+        print(f"Hybrid Identity: Detected")
+        if hybrid_result.adfs_endpoint:
+            print(f"ADFS Endpoint: {hybrid_result.adfs_endpoint}")
 
 asyncio.run(main())
 ```
@@ -205,6 +213,106 @@ Test for WAF presence using common bypass techniques.
 waf_results = await detector.test_waf_bypass("example.com")
 print(f"WAF detected: {waf_results['waf_detected']}")
 print(f"Blocked requests: {len(waf_results['blocked_requests'])}")
+```
+
+### HybridIdentityChecker
+
+Class for detecting hybrid identity setup, ADFS endpoints, and Azure AD integration. This checker uses the same method as Azure Portal to discover ADFS endpoints by querying the Azure AD realm API.
+
+#### Constructor
+
+```python
+from simple_port_checker import HybridIdentityChecker
+
+# Default configuration
+checker = HybridIdentityChecker()
+
+# Custom timeout
+checker = HybridIdentityChecker(timeout=15.0)
+```
+
+**Parameters:**
+- `timeout` (float): Request timeout in seconds (default: 10.0)
+
+#### Methods
+
+##### `check(fqdn)`
+
+Check if a domain has hybrid identity setup and detect ADFS endpoints.
+
+This checks for:
+- ADFS endpoints via Azure AD login flow (most reliable method)
+- Direct ADFS endpoints (/adfs/ls)
+- Federation metadata
+- Azure AD integration
+- OpenID Connect configuration
+- DNS records for Microsoft verification
+
+**Parameters:**
+- `fqdn` (str): Fully Qualified Domain Name to check
+
+**Returns:** `HybridIdentityResult` object
+
+**Example:**
+```python
+# Basic hybrid identity check
+result = await checker.check("example.com")
+
+if result.has_hybrid_identity:
+    print("✅ Hybrid Identity Detected")
+    
+    if result.has_adfs:
+        print(f"ADFS Endpoint: {result.adfs_endpoint}")
+        print(f"Status Code: {result.adfs_status_code}")
+    
+    if result.federation_metadata_found:
+        print("Federation Metadata: Found")
+    
+    if result.azure_ad_detected:
+        print("Azure AD Integration: Detected")
+    
+    if result.openid_config_found:
+        print("OpenID Configuration: Found")
+else:
+    print("⚠️  No Hybrid Identity Found")
+
+# Check DNS records
+if result.dns_records:
+    if 'microsoft_verification' in result.dns_records:
+        print("Microsoft Verification: Found")
+    if 'adfs_subdomains' in result.dns_records:
+        print(f"ADFS Subdomains: {result.dns_records['adfs_subdomains']}")
+
+# Error handling
+if result.error:
+    print(f"Error: {result.error}")
+```
+
+##### `batch_check(fqdns, max_concurrent=10)`
+
+Check multiple domains for hybrid identity setup concurrently.
+
+**Parameters:**
+- `fqdns` (List[str]): List of domain names to check
+- `max_concurrent` (int, optional): Maximum concurrent checks. Defaults to 10
+
+**Returns:** `List[HybridIdentityResult]`
+
+**Example:**
+```python
+domains = ["company1.com", "company2.com", "company3.com"]
+results = await checker.batch_check(domains, max_concurrent=5)
+
+for result in results:
+    status = "✅" if result.has_hybrid_identity else "❌"
+    adfs = f" - {result.adfs_endpoint}" if result.adfs_endpoint else ""
+    print(f"{status} {result.fqdn}{adfs}")
+
+# Summary statistics
+hybrid_count = sum(1 for r in results if r.has_hybrid_identity)
+adfs_count = sum(1 for r in results if r.has_adfs)
+print(f"\nHybrid Identity: {hybrid_count}/{len(results)}")
+print(f"ADFS Endpoints: {adfs_count}/{len(results)}")
 ```
 
 ### MTLSChecker
@@ -480,6 +588,40 @@ Enumeration of supported L7 protection services.
 - `RADWARE`: Radware DefensePro
 - `AZURE_FRONT_DOOR`: Azure Front Door
 - `UNKNOWN`: Unknown protection service
+
+### HybridIdentityResult
+
+Contains the results of hybrid identity detection checks.
+
+**Attributes:**
+- `fqdn` (str): Fully Qualified Domain Name checked
+- `has_hybrid_identity` (bool): Whether hybrid identity setup was detected
+- `has_adfs` (bool): Whether ADFS endpoint was found
+- `adfs_endpoint` (str, optional): Full ADFS endpoint URL if found
+- `adfs_status_code` (int, optional): HTTP status code from ADFS endpoint
+- `federation_metadata_found` (bool): Whether federation metadata was found
+- `azure_ad_detected` (bool): Whether Azure AD integration was detected
+- `openid_config_found` (bool): Whether OpenID Connect configuration was found
+- `dns_records` (Dict[str, List[str]]): DNS records found for the domain
+- `error` (str, optional): Error message if check failed
+- `response_time` (float): Total response time in seconds
+
+**Example:**
+```python
+result = await checker.check("example.com")
+
+print(f"Domain: {result.fqdn}")
+print(f"Hybrid Identity: {result.has_hybrid_identity}")
+print(f"ADFS: {result.has_adfs}")
+print(f"Response Time: {result.response_time:.2f}s")
+
+if result.adfs_endpoint:
+    print(f"ADFS Endpoint: {result.adfs_endpoint}")
+    print(f"Status Code: {result.adfs_status_code}")
+
+# Convert to dictionary for JSON serialization
+result_dict = result.to_dict()
+```
 
 ### MTLSResult
 
@@ -1025,6 +1167,105 @@ async def comprehensive_security_analysis(target):
 
 # Run comprehensive analysis
 asyncio.run(comprehensive_security_analysis("github.com"))
+```
+
+### Hybrid Identity Detection
+
+```python
+import asyncio
+from simple_port_checker import HybridIdentityChecker
+
+async def check_hybrid_identity():
+    """Check for hybrid identity and ADFS configuration."""
+    checker = HybridIdentityChecker(timeout=15.0)
+    
+    # Single domain check
+    result = await checker.check("example.com")
+    
+    print(f"Domain: {result.fqdn}")
+    print(f"Hybrid Identity: {'✅ Detected' if result.has_hybrid_identity else '❌ Not Found'}")
+    
+    if result.has_adfs:
+        print(f"\nADFS Configuration:")
+        print(f"  Endpoint: {result.adfs_endpoint}")
+        print(f"  Status: {result.adfs_status_code}")
+    
+    if result.federation_metadata_found:
+        print("  Federation Metadata: ✅ Found")
+    
+    if result.azure_ad_detected:
+        print("  Azure AD Integration: ✅ Detected")
+    
+    if result.openid_config_found:
+        print("  OpenID Configuration: ✅ Found")
+    
+    # DNS analysis
+    if result.dns_records:
+        print(f"\nDNS Records:")
+        if 'microsoft_verification' in result.dns_records:
+            print("  Microsoft Verification: ✅ Found")
+        if 'microsoft_mail' in result.dns_records:
+            print("  Microsoft Mail (MX): ✅ Found")
+        if 'adfs_subdomains' in result.dns_records:
+            print(f"  ADFS Subdomains: {', '.join(result.dns_records['adfs_subdomains'])}")
+    
+    print(f"\nResponse Time: {result.response_time:.2f}s")
+
+async def batch_hybrid_identity_check():
+    """Check multiple domains for hybrid identity."""
+    checker = HybridIdentityChecker()
+    
+    domains = [
+        "company1.com",
+        "company2.com",
+        "company3.com",
+    ]
+    
+    print("Checking hybrid identity for multiple domains...\n")
+    results = await checker.batch_check(domains, max_concurrent=5)
+    
+    # Summary
+    hybrid_count = sum(1 for r in results if r.has_hybrid_identity)
+    adfs_count = sum(1 for r in results if r.has_adfs)
+    
+    print(f"\nSummary:")
+    print(f"  Total Domains: {len(results)}")
+    print(f"  Hybrid Identity Found: {hybrid_count}")
+    print(f"  ADFS Endpoints Found: {adfs_count}")
+    
+    # Detailed results
+    print(f"\nDetailed Results:")
+    for result in results:
+        status = "✅" if result.has_hybrid_identity else "❌"
+        adfs = f" (ADFS: {result.adfs_endpoint})" if result.adfs_endpoint else ""
+        print(f"  {status} {result.fqdn}{adfs}")
+
+async def hybrid_identity_with_error_handling():
+    """Production-ready hybrid identity checking with error handling."""
+    checker = HybridIdentityChecker(timeout=10.0)
+    
+    domains = ["example.com", "test.com", "invalid-domain-xyz.com"]
+    
+    for domain in domains:
+        try:
+            result = await checker.check(domain)
+            
+            if result.error:
+                print(f"❌ {domain}: {result.error}")
+                continue
+            
+            if result.has_hybrid_identity:
+                print(f"✅ {domain}: Hybrid Identity Detected")
+                if result.adfs_endpoint:
+                    print(f"   ADFS: {result.adfs_endpoint}")
+            else:
+                print(f"ℹ️  {domain}: Cloud-only (no hybrid identity)")
+                
+        except Exception as e:
+            print(f"❌ {domain}: Exception - {e}")
+
+# Run examples
+asyncio.run(check_hybrid_identity())
 ```
 
 ## Best Practices
