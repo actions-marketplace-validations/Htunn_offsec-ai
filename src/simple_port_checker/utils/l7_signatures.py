@@ -59,9 +59,9 @@ L7_SIGNATURES: Dict[L7Protection, Dict[str, Any]] = {
             "X-Cache": [r".*AZURE.*"],
             "X-Served-By": [r".*azure.*"],
             "X-Msedge-Ref": [r".*"],
-            "Server": [r"Microsoft-.*", r"AzureWebSites"],
+            "Server": [r"Microsoft-IIS.*", r"Microsoft-Azure.*", r"AzureWebSites"],
         },
-        "server": [r"Microsoft-.*", r"AzureWebSites"],
+        "server": [r"Microsoft-IIS.*", r"Microsoft-Azure.*", r"AzureWebSites"],
         "body": [
             r"Microsoft Azure",
             r"Request blocked by the security policy",
@@ -93,8 +93,30 @@ L7_SIGNATURES: Dict[L7Protection, Dict[str, Any]] = {
             r"Azure Traffic Manager",
             r"App Service"
         ],
-        "status_codes": [403, 404, 503],
+        "status_codes": [403, 503],
         "description": "Microsoft Azure Front Door and Traffic Manager",
+    },
+    L7Protection.MICROSOFT_HTTPAPI: {
+        "headers": {
+            "Server": [r"Microsoft-HTTPAPI/2\.0", r"microsoft-httpapi/2\.0"],
+            "X-Powered-By": [r"ASP\.NET"],
+            "WWW-Authenticate": [r".*"],
+            "X-MS-Request-Id": [r".*"],
+            "X-Content-Type-Options": [r"nosniff"],
+        },
+        "server": [r"Microsoft-HTTPAPI/2\.0", r"microsoft-httpapi/2\.0"],
+        "body": [
+            r"Microsoft-HTTPAPI/2\.0",
+            r"microsoft-httpapi/2\.0",
+            r"IIS",
+            r"Active Directory Federation Services",
+            r"ADFS",
+            r"Windows Authentication",
+            r"Microsoft Windows",
+            r"ASP\.NET",
+        ],
+        "status_codes": [401, 403, 500, 503],
+        "description": "Microsoft HTTPAPI/2.0 (Windows Web Application or F5-protected ADFS Server)",
     },
     L7Protection.F5_BIG_IP: {
         "headers": {
@@ -117,7 +139,6 @@ L7_SIGNATURES: Dict[L7Protection, Dict[str, Any]] = {
             r"F5 Networks",
             r"Application Security Manager",
             r"Request Rejected",
-            r"HTTP Error 404\. The requested resource is not found\.",
             r"Modified by F5",
             r"Volt ADC",
             r"Volterra",
@@ -128,7 +149,7 @@ L7_SIGNATURES: Dict[L7Protection, Dict[str, Any]] = {
             r"The requested URL was rejected",
             r"This request was blocked by the security rules",
         ],
-        "status_codes": [302, 400, 403, 404, 503],
+        "status_codes": [302, 400, 403, 503],
         "description": "F5 BIG-IP Application Security Manager",
     },
     L7Protection.AKAMAI: {
@@ -399,6 +420,13 @@ def estimate_protection_confidence(
 
     for protection, signatures in L7_SIGNATURES.items():
         score = 0.0
+
+        # Special case: Microsoft HTTPAPI/2.0 gets 100% confidence when detected
+        if protection == L7Protection.MICROSOFT_HTTPAPI:
+            server_header = headers.get("Server", "").lower()
+            if "microsoft-httpapi/2.0" in server_header:
+                confidence_scores[protection] = 1.0
+                continue
 
         # Check headers
         for header_name, patterns in signatures.get("headers", {}).items():

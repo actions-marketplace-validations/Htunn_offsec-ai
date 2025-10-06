@@ -554,6 +554,12 @@ if result.primary_protection:
     protection = result.primary_protection
     print(f"Service: {protection.service.value}")
     print(f"Confidence: {protection.confidence:.1%}")
+
+# Example with Microsoft HTTPAPI/2.0 (ADFS server)
+result = await detector.detect("loginfs.ntu.edu.sg")
+if result.primary_protection and result.primary_protection.service == L7Protection.MICROSOFT_HTTPAPI:
+    print(f"Detected: {result.primary_protection.get_display_name()}")  # MS WAP or F5 Proxy
+    print(f"Confidence: {result.primary_protection.confidence:.1%}")    # 100.0%
 ```
 
 ### L7Detection
@@ -574,6 +580,8 @@ Enumeration of supported L7 protection services.
 - `CLOUDFLARE`: Cloudflare WAF and DDoS Protection
 - `AWS_WAF`: Amazon Web Application Firewall
 - `AZURE_WAF`: Microsoft Azure Web Application Firewall
+- `AZURE_FRONT_DOOR`: Azure Front Door
+- `MICROSOFT_HTTPAPI`: Microsoft HTTPAPI/2.0 (Windows Web Application Proxy or F5-protected ADFS Server)
 - `F5_BIG_IP`: F5 Application Security Manager (Enhanced detection for banking/enterprise F5 deployments)
 - `AKAMAI`: Akamai Web Application Protector
 - `IMPERVA`: Imperva SecureSphere WAF
@@ -586,7 +594,6 @@ Enumeration of supported L7 protection services.
 - `FORTINET`: FortiWeb WAF
 - `CITRIX`: Citrix NetScaler
 - `RADWARE`: Radware DefensePro
-- `AZURE_FRONT_DOOR`: Azure Front Door
 - `UNKNOWN`: Unknown protection service
 
 ### HybridIdentityResult

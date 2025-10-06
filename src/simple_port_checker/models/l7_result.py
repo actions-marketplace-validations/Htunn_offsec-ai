@@ -17,6 +17,7 @@ class L7Protection(Enum):
     AWS_WAF = "aws_waf"
     AZURE_WAF = "azure_waf"
     AZURE_FRONT_DOOR = "azure_front_door"
+    MICROSOFT_HTTPAPI = "microsoft_httpapi"
     F5_BIG_IP = "f5_big_ip"
     CLOUDFLARE = "cloudflare"
     AKAMAI = "akamai"
@@ -62,6 +63,10 @@ class L7Detection:
                 return "CloudFront - AWS WAF"
             else:
                 return "AWS WAF"
+        
+        # For Microsoft HTTPAPI, use more descriptive name
+        if self.service == L7Protection.MICROSOFT_HTTPAPI:
+            return "MS WAP or F5 Proxy"
         
         # Default to the enum value
         return self.service.value

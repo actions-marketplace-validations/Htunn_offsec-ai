@@ -479,6 +479,13 @@ class L7Detector:
                     modified_indicators.extend(cloudfront_indicators[:2])  # Add specific CloudFront indicators
                     indicators = modified_indicators
 
+            # Special check for Microsoft HTTPAPI/2.0 - give 100% confidence when detected
+            elif protection_type == L7Protection.MICROSOFT_HTTPAPI:
+                server_header = headers.get("Server", "").lower()
+                if "microsoft-httpapi/2.0" in server_header:
+                    confidence = 1.0  # 100% confidence for Microsoft HTTPAPI/2.0
+                    indicators = [f"Microsoft HTTPAPI/2.0 detected: {headers.get('Server', '')}"]
+
             # Check server header specifically
             server_header = headers.get("Server", "").lower()
             if server_header:
@@ -987,6 +994,18 @@ class L7Detector:
             )
             return  # Return early as this is a confident match
         
+        # Microsoft HTTPAPI/2.0 indicators (high priority - Windows/ADFS servers)
+        if "microsoft-httpapi/2.0" in server:
+            detections.append(
+                L7Detection(
+                    service=L7Protection.MICROSOFT_HTTPAPI,
+                    confidence=1.0,  # 100% confidence for Microsoft HTTPAPI/2.0
+                    indicators=[f"Microsoft HTTPAPI/2.0 detected: {headers.get('Server', '')}"],
+                    details={"method": "microsoft_httpapi_detection"},
+                )
+            )
+            return  # Return early as this is a confident match
+        
         # Cloudflare indicators
         if any(h in headers_lower for h in ["cf-ray", "cf-cache-status", "cf-request-id"]) or "cloudflare" in server:
             detections.append(
@@ -1063,7 +1082,8 @@ class L7Detector:
             )
             
         # Azure Front Door indicators
-        elif any(h in headers_lower for h in ["x-azure-ref", "x-fd-healthprobe", "x-msedge-ref"]) or "microsoft" in server:
+        elif any(h in headers_lower for h in ["x-azure-ref", "x-fd-healthprobe", "x-msedge-ref"]) or \
+             (server and any(azure_pattern in server for azure_pattern in ["microsoft-iis", "microsoft-azure", "azurewebsites"])):
             # Collect indicators for more detailed reporting
             azure_indicators = []
             

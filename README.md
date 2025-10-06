@@ -8,7 +8,7 @@ A comprehensive Python tool for checking firewall ports, detecting L7 protection
 ## Features
 
 - ✅ **Port Scanning**: Check well-known firewall ports and services
-- 🛡️ **L7 Protection Detection**: Identify WAF/CDN services (F5, AWS WAF, Azure, Cloudflare, etc.)
+- 🛡️ **L7 Protection Detection**: Identify WAF/CDN services (F5, AWS WAF, Azure, Cloudflare, Microsoft HTTPAPI, etc.)
 - 🔐 **mTLS Authentication**: Check mutual TLS support and certificate requirements
 - 🔒 **SSL/TLS Certificate Analysis**: Comprehensive certificate chain analysis and validation
 - 🏛️ **Certificate Authority Identification**: "Who signed my cert?" functionality with trust chain visualization
@@ -849,6 +849,8 @@ sequenceDiagram
 
 - **AWS WAF** - Amazon Web Application Firewall
 - **Azure WAF** - Microsoft Azure Web Application Firewall  
+- **Azure Front Door** - Microsoft Azure Front Door
+- **Microsoft HTTPAPI** - Microsoft Web Application Proxy (WAP) or F5-protected ADFS Server
 - **F5 BIG-IP** - F5 Application Security Manager
 - **Cloudflare** - Cloudflare WAF and DDoS Protection
 - **Akamai** - Akamai Web Application Protector
