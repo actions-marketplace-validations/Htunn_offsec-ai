@@ -75,6 +75,8 @@ jobs:
     - name: Install latest version from PyPI
       run: |
         pip install --upgrade pip
+        # Install OWASP dependencies first
+        pip install httpx>=0.25.0 reportlab>=4.0.0
         # Install the latest version that was just published
         pip install simple-port-checker --upgrade --no-cache-dir
         echo "Installed package version:"
@@ -152,3 +154,19 @@ jobs:
         echo "Validating OWASP scan command is available..."
         python -m simple_port_checker --help | grep "owasp-scan"
         echo "✅ OWASP vulnerability scanner is available"
+    
+    - name: Test OWASP 2025 categories (NEW)
+      run: |
+        echo "Testing OWASP Top 10 2025 categories..."
+        python -m simple_port_checker owasp-scan example.com -c A03_2025,A10_2025 --timeout 10 --quiet
+    
+    - name: Test mixed OWASP 2021/2025 scan
+      run: |
+        echo "Testing mixed OWASP 2021 and 2025 categories..."
+        python -m simple_port_checker owasp-scan example.com -c A02,A05,A03_2025,A10_2025 --timeout 10
+    
+    - name: Validate OWASP 2025 help text
+      run: |
+        echo "Validating OWASP 2025 support in help..."
+        python -m simple_port_checker owasp-scan --help | grep "2025"
+        echo "✅ OWASP Top 10 2025 support verified"

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-01-23
+
+### Added
+- **🆕 OWASP Top 10 2025 Support**: Added support for OWASP Top 10 2025 categories
+  - **A03_2025**: Software Supply Chain Failures
+    - Security.txt file detection
+    - Software Bill of Materials (SBOM) checking
+    - Supply chain transparency verification
+  - **A10_2025**: Mishandling of Exceptional Conditions
+    - Server version disclosure detection
+    - Technology stack disclosure analysis
+    - Verbose error message detection
+- **🔄 Mixed Scanning**: Support for scanning both OWASP 2021 and 2025 categories simultaneously
+- **📚 Tech-Specific Remediation**: Remediation guidance for new 2025 categories across all tech stacks
+
+### Fixed
+- **🐛 CI/CD**: Install httpx and reportlab dependencies before package in publish workflow
+  - Resolved `ModuleNotFoundError: No module named 'httpx'` in integration tests
+
+### Changed
+- **📖 Documentation**: Updated CLI help text to reflect OWASP 2021/2025 support
+- **🧪 Testing**: Added OWASP 2025 integration tests to CI/CD pipeline
+
 ## [1.1.1] - 2026-01-23
 
 ### Fixed
