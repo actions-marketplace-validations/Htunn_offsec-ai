@@ -34,7 +34,7 @@ async def main():
     print(f"Valid: {cert_chain.server_cert.is_valid_now}")
     print(f"Chain Complete: {cert_chain.chain_complete}")
     
-    # OWASP Top 10 vulnerability scanning
+    # OWASP Top 10 2021/2025 vulnerability scanning
     owasp_scanner = OwaspScanner(mode="safe")
     owasp_result = await owasp_scanner.scan("example.com")
     print(f"Security Grade: {owasp_result.overall_grade}")
@@ -1283,11 +1283,11 @@ asyncio.run(check_hybrid_identity())
 
 ---
 
-## OWASP Top 10 Vulnerability Scanner
+## OWASP Top 10 2021/2025 Vulnerability Scanner
 
 ### OwaspScanner
 
-The `OwaspScanner` class performs comprehensive security vulnerability scanning based on OWASP Top 10 2021 categories.
+The `OwaspScanner` class performs comprehensive security vulnerability scanning based on OWASP Top 10 2021 and 2025 categories.
 
 #### Constructor
 
@@ -1301,30 +1301,36 @@ OwaspScanner(
 
 **Parameters:**
 - `mode` (str): Scan mode - either "safe" (passive scanning) or "deep" (active probing). Default: "safe"
-  - **Safe mode**: Only scans A02, A05, A06, A07 (passive header analysis)
+  - **Safe mode**: Only scans A02, A05, A06, A07 (passive header analysis) + OWASP 2025 categories (A03_2025, A10_2025)
   - **Deep mode**: Scans all testable categories (excludes only A09)
-- `enabled_categories` (List[str], optional): Specific OWASP categories to scan (e.g., ["A02", "A05"]). Overrides mode settings.
+- `enabled_categories` (List[str], optional): Specific OWASP categories to scan. Supports both 2021 categories ("A02", "A05") and 2025 categories ("A03_2025", "A10_2025"). Can mix both versions. Overrides mode settings.
 - `timeout` (float): Timeout for HTTP requests in seconds. Default: 10.0
 
 **Example:**
 ```python
 from simple_port_checker import OwaspScanner
 
-# Safe mode scanner (default)
+# Safe mode scanner (default) - includes 2021 and 2025 categories
 scanner = OwaspScanner(mode="safe", timeout=15.0)
 
 # Deep mode scanner
 deep_scanner = OwaspScanner(mode="deep")
 
-# Custom categories only
+# Custom categories - 2021 only
 custom_scanner = OwaspScanner(enabled_categories=["A02", "A05", "A06"])
+
+# Custom categories - 2025 only
+scanner_2025 = OwaspScanner(enabled_categories=["A03_2025", "A10_2025"])
+
+# Mixed 2021 and 2025 categories
+mixed_scanner = OwaspScanner(enabled_categories=["A02", "A05", "A03_2025", "A10_2025"])
 ```
 
 #### Methods
 
 ##### scan()
 
-Scan a single target for OWASP Top 10 vulnerabilities.
+Scan a single target for OWASP Top 10 2021/2025 vulnerabilities.
 
 ```python
 async def scan(
@@ -1524,7 +1530,7 @@ if critical:
 Individual vulnerability finding.
 
 **Properties:**
-- `category` (str): OWASP category (e.g., "A02")
+- `category` (str): OWASP category (e.g., "A02" for 2021, "A03_2025" for 2025)
 - `title` (str): Finding title
 - `description` (str): Detailed description
 - `severity` (SeverityLevel): CRITICAL, HIGH, MEDIUM, or LOW
@@ -1538,6 +1544,10 @@ for finding in result.all_findings:
     print(f"  Evidence: {finding.evidence}")
     if finding.cwe_ids:
         print(f"  CWE: {', '.join(finding.cwe_ids)}")
+    
+    # Check if it's a 2025 category
+    if "_2025" in finding.category:
+        print(f"  [OWASP 2025 Category]")
 ```
 
 #### SeverityLevel
@@ -1555,7 +1565,7 @@ Enum for finding severity levels.
 Result for a single OWASP category.
 
 **Properties:**
-- `category_id` (str): Category identifier (A01-A10)
+- `category_id` (str): Category identifier (A01-A10 for 2021, A03_2025/A10_2025 for 2025)
 - `category_name` (str): Category name
 - `findings` (List[OwaspFinding]): Findings for this category
 - `scanned` (bool): Whether category was scanned
@@ -1691,7 +1701,7 @@ if remediation:
 - `cloudflare`: Cloudflare CDN
 - `generic`: Framework-agnostic guidance
 
-**OWASP Categories:**
+**OWASP 2021 Categories:**
 - A01: Broken Access Control
 - A02: Cryptographic Failures (testable)
 - A03: Injection
@@ -1702,6 +1712,37 @@ if remediation:
 - A08: Software and Data Integrity Failures
 - A09: Security Logging and Monitoring Failures (not externally testable)
 - A10: Server-Side Request Forgery (SSRF)
+
+**OWASP 2025 Categories (NEW!):**
+- A03_2025: Software Supply Chain Failures (testable)
+  - Security.txt file detection
+  - SBOM (Software Bill of Materials) checking
+  - Supply chain transparency verification
+- A10_2025: Mishandling of Exceptional Conditions (testable)
+  - Server version disclosure detection
+  - Technology stack disclosure analysis
+  - Verbose error message detection
+  - Stack trace exposure checking
+
+**Example with 2025 Categories:**
+```python
+from simple_port_checker.utils import get_remediation
+
+# Get remediation for OWASP 2025 category
+supply_chain_remediation = get_remediation("A03_2025", tech_stack="nginx")
+if supply_chain_remediation:
+    print(f"Category: Software Supply Chain Failures (OWASP 2025)")
+    print(f"Description: {supply_chain_remediation.description}")
+    for step in supply_chain_remediation.steps:
+        print(f"  - {step}")
+
+# Get remediation for exception handling
+exception_remediation = get_remediation("A10_2025", tech_stack="apache")
+if exception_remediation:
+    print(f"\nCategory: Mishandling of Exceptional Conditions (OWASP 2025)")
+    print(f"Apache Configuration:")
+    print(exception_remediation.code_examples.get("apache", ""))
+```
 
 ---
 
