@@ -4,7 +4,7 @@ FROM python:3.12-slim-bookworm
 # Set metadata
 LABEL maintainer="htunn <htunnthuthu.linux@gmail.com>"
 LABEL description="A comprehensive tool for checking firewall ports, L7 protection services, SSL/TLS certificate analysis, and OWASP Top 10 vulnerability scanning"
-LABEL version="1.1.0"
+LABEL version="1.1.1"
 LABEL org.opencontainers.image.source="https://github.com/htunn/simple-port-checker"
 LABEL org.opencontainers.image.documentation="https://github.com/htunn/simple-port-checker#readme"
 LABEL org.opencontainers.image.licenses="MIT"
@@ -33,8 +33,9 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src/ ./src/
 
-# Install the application and change ownership
+# Install the application with OWASP dependencies and change ownership
 RUN pip install --upgrade pip && \
+    pip install httpx>=0.25.0 reportlab>=4.0.0 && \
     pip install . && \
     chown -R appuser:appuser /app
 

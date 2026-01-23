@@ -15,7 +15,7 @@ This package provides functionality for:
 - Rich CLI interface with progress bars
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __author__ = "htunn"
 __email__ = "htunnthuthu.linux@gmail.com"
 __license__ = "MIT"

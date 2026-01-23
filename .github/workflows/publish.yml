@@ -117,3 +117,38 @@ jobs:
         echo "Validating new certificate commands are available..."
         python -m simple_port_checker --help | grep -E "(cert-check|cert-chain|cert-info)"
         echo "✅ All certificate analysis commands are available"
+    
+    - name: Test OWASP vulnerability scanner (NEW)
+      run: |
+        echo "Testing OWASP Top 10 2021 vulnerability scanner..."
+        python -m simple_port_checker owasp-scan example.com --timeout 10 --quiet
+    
+    - name: Test OWASP scan with categories
+      run: |
+        echo "Testing OWASP scan with specific categories..."
+        python -m simple_port_checker owasp-scan google.com -c A02,A05 --timeout 10
+    
+    - name: Test OWASP JSON export
+      run: |
+        echo "Testing OWASP JSON export..."
+        python -m simple_port_checker owasp-scan example.com -f json -o /tmp/owasp-test.json --timeout 10
+        if [ -f /tmp/owasp-test.json ]; then
+          echo "✅ JSON export successful"
+          cat /tmp/owasp-test.json | python -m json.tool > /dev/null
+          echo "✅ JSON is valid"
+        fi
+    
+    - name: Test OWASP CSV export
+      run: |
+        echo "Testing OWASP CSV export..."
+        python -m simple_port_checker owasp-scan example.com -f csv -o /tmp/owasp-test.csv --timeout 10
+        if [ -f /tmp/owasp-test.csv ]; then
+          echo "✅ CSV export successful"
+          head -n 5 /tmp/owasp-test.csv
+        fi
+    
+    - name: Validate OWASP command exists
+      run: |
+        echo "Validating OWASP scan command is available..."
+        python -m simple_port_checker --help | grep "owasp-scan"
+        echo "✅ OWASP vulnerability scanner is available"

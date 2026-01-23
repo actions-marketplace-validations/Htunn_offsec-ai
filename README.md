@@ -464,6 +464,524 @@ Azure AD Integration: ❌ Not Detected
 - Full API Docs: `docs/hybrid-identity.md`
 - API Reference: `docs/api.md`
 
+---
+
+# OWASP Top 10 2021 Vulnerability Scanner
+
+## Overview
+
+The OWASP Top 10 2021 vulnerability scanner provides comprehensive security assessment for web applications and APIs. It detects common security vulnerabilities, provides severity-based risk scoring, and offers technology-specific remediation guidance.
+
+This is essential for:
+
+- **🔍 Security Assessments**: Automated detection of OWASP Top 10 2021 vulnerabilities
+- **📊 Risk Scoring**: Severity-based grading system (A-F) with automatic critical failure detection
+- **🛡️ Security Headers**: Analysis of HTTP security headers (HSTS, CSP, X-Frame-Options, etc.)
+- **🔧 Remediation**: Tech-specific fix guidance for Apache, Nginx, IIS, Cloudflare
+- **📄 Reporting**: Professional PDF reports, JSON/CSV export for integration
+- **🎯 Compliance**: OWASP compliance verification with CWE mapping
+- **⚡ Safe Mode**: Passive-only scanning (default) that won't trigger security alerts
+- **🚀 Deep Mode**: Active probing for comprehensive vulnerability detection
+
+## What It Scans
+
+### OWASP Top 10 2021 Categories
+
+| Category | Name | Safe Mode | Deep Mode | Detection Method |
+|----------|------|-----------|-----------|------------------|
+| **A01** | Broken Access Control | ❌ | ✅ | Authorization testing |
+| **A02** | Cryptographic Failures | ✅ | ✅ | SSL/TLS analysis, HSTS, cookie flags |
+| **A03** | Injection | ❌ | ✅ | Payload testing |
+| **A04** | Insecure Design | ❌ | ✅ | Architecture analysis |
+| **A05** | Security Misconfiguration | ✅ | ✅ | Header analysis, server disclosure |
+| **A06** | Vulnerable Components | ✅ | ✅ | Version detection |
+| **A07** | Authentication Failures | ✅ | ✅ | Session management, cookie security |
+| **A08** | Software/Data Integrity | ❌ | ✅ | Integrity checks |
+| **A09** | Logging/Monitoring | 🚫 | 🚫 | Not externally testable |
+| **A10** | Server-Side Request Forgery | ❌ | ✅ | SSRF testing |
+
+### Scan Modes
+
+**🛡️ Safe Mode (Default)**
+- Passive-only checks that won't trigger security alerts
+- Scans: A02, A05, A06, A07
+- Perfect for production environments
+- No active probing or payload injection
+
+**🚀 Deep Mode**
+- Active vulnerability probing
+- Scans: All testable categories (excludes A09)
+- Requires explicit authorization
+- May trigger security monitoring systems
+
+### Severity Scoring
+
+| Severity | Points | Impact | Auto-Grade |
+|----------|--------|--------|------------|
+| **CRITICAL** | 15 | Immediate exploitation risk | Auto F-grade for A02 |
+| **HIGH** | 10 | Significant security impact | - |
+| **MEDIUM** | 5 | Moderate risk | - |
+| **LOW** | 1 | Minor issue | - |
+
+**Grading Scale**: A (0-10), B (11-25), C (26-50), D (51-100), F (>100 or critical crypto failures)
+
+## OWASP Scan Workflow
+
+```mermaid
+sequenceDiagram
+    participant CLI as CLI/API
+    participant Scanner as OwaspScanner
+    participant Headers as SecurityHeaderChecker
+    participant Cert as CertificateAnalyzer
+    participant Remediation as RemediationDB
+    participant Export as Exporters
+    
+    CLI->>Scanner: owasp-scan target
+    activate Scanner
+    
+    Note over Scanner: Initialize scan mode<br/>(safe/deep)
+    
+    Scanner->>Headers: Check security headers
+    activate Headers
+    Headers-->>Scanner: Header analysis results
+    deactivate Headers
+    
+    Scanner->>Cert: Analyze SSL/TLS
+    activate Cert
+    Cert-->>Scanner: Certificate chain & grade
+    deactivate Cert
+    
+    Note over Scanner: Run category checks<br/>(A02, A05, A06, A07)
+    
+    Scanner->>Scanner: Calculate severity scores
+    Scanner->>Scanner: Assign grade (A-F)
+    
+    Scanner->>Remediation: Get tech-specific fixes
+    activate Remediation
+    Remediation-->>Scanner: Remediation guidance
+    deactivate Remediation
+    
+    Scanner-->>CLI: OwaspScanResult
+    deactivate Scanner
+    
+    CLI->>Export: Format output
+    activate Export
+    Export-->>CLI: PDF/JSON/CSV report
+    deactivate Export
+```
+
+## Command Line Usage
+
+### Basic OWASP Scanning
+
+```bash
+# Safe mode scan (default - passive only)
+simple-port-checker owasp-scan example.com
+
+# Deep scan with active probing (requires authorization)
+simple-port-checker owasp-scan example.com --deep
+
+# Scan with verbose output showing all findings
+simple-port-checker owasp-scan example.com --verbose
+
+# Quiet mode - grade summary only
+simple-port-checker owasp-scan example.com --quiet
+```
+
+### Category-Specific Scanning
+
+```bash
+# Scan specific OWASP categories
+simple-port-checker owasp-scan example.com -c A02,A05,A06
+
+# Scan only cryptographic failures
+simple-port-checker owasp-scan example.com -c A02 --verbose
+
+# Custom category set
+simple-port-checker owasp-scan example.com -c A02,A05,A07 --deep
+```
+
+### Technology-Specific Remediation
+
+```bash
+# Get Nginx-specific remediation guidance
+simple-port-checker owasp-scan example.com -t nginx --verbose
+
+# Apache server remediation
+simple-port-checker owasp-scan example.com -t apache -f pdf -o report.pdf
+
+# IIS server remediation
+simple-port-checker owasp-scan example.com -t iis --verbose
+
+# Cloudflare CDN remediation
+simple-port-checker owasp-scan example.com -t cloudflare
+
+# Generic remediation (default)
+simple-port-checker owasp-scan example.com -t generic
+```
+
+### Multi-Format Reporting
+
+```bash
+# Console output (default)
+simple-port-checker owasp-scan example.com
+
+# Professional PDF report with remediation
+simple-port-checker owasp-scan example.com -f pdf -o security-report.pdf
+
+# JSON export for automation/integration
+simple-port-checker owasp-scan example.com -f json -o results.json
+
+# CSV for spreadsheet analysis
+simple-port-checker owasp-scan example.com -f csv -o findings.csv
+
+# JSON with remediation guidance
+simple-port-checker owasp-scan example.com -f json -o results.json -t nginx
+```
+
+### Severity Filtering
+
+```bash
+# Show only critical findings
+simple-port-checker owasp-scan example.com --severity CRITICAL
+
+# High and above
+simple-port-checker owasp-scan example.com --severity HIGH --verbose
+
+# Medium and above
+simple-port-checker owasp-scan example.com --severity MEDIUM
+
+# All findings (default)
+simple-port-checker owasp-scan example.com --verbose
+```
+
+### Batch Scanning
+
+```bash
+# Scan multiple targets
+simple-port-checker owasp-scan site1.com site2.com site3.com
+
+# With deep mode and PDF reports
+simple-port-checker owasp-scan api.example.com admin.example.com \
+  --deep -f pdf -o batch-report.pdf
+
+# From file
+simple-port-checker owasp-scan $(cat targets.txt) --verbose
+```
+
+### Advanced Options
+
+```bash
+# Custom timeout for slow networks
+simple-port-checker owasp-scan example.com --timeout 20
+
+# Complete assessment with all options
+simple-port-checker owasp-scan example.com \
+  --deep \
+  -t nginx \
+  -f pdf \
+  -o comprehensive-report.pdf \
+  --verbose \
+  --timeout 15
+```
+
+### Docker Usage
+
+```bash
+# Basic OWASP scan
+docker run --rm htunnthuthu/simple-port-checker:latest \
+  owasp-scan example.com
+
+# Deep scan with PDF report (save to host)
+docker run --rm -v $(pwd):/app/output \
+  htunnthuthu/simple-port-checker:latest \
+  owasp-scan example.com \
+  --deep -f pdf -o /app/output/security-report.pdf
+
+# Multiple targets with tech-specific remediation
+docker run --rm htunnthuthu/simple-port-checker:latest \
+  owasp-scan api.example.com admin.example.com \
+  -t nginx --verbose
+```
+
+## Python API Usage
+
+### Basic OWASP Scanning
+
+```python
+import asyncio
+from simple_port_checker import OwaspScanner
+
+async def basic_owasp_scan():
+    """Perform basic OWASP Top 10 scan."""
+    scanner = OwaspScanner(mode="safe", timeout=15.0)
+    
+    # Scan target
+    result = await scanner.scan("example.com", port=443, tech_stack="nginx")
+    
+    # Display results
+    print(f"Target: {result.target}:{result.port}")
+    print(f"Overall Grade: {result.overall_grade}")
+    print(f"Total Score: {result.total_score}")
+    print(f"Scan Mode: {result.scan_mode.value}")
+    print(f"Duration: {result.duration:.2f}s")
+    
+    # Show findings by severity
+    if result.critical_findings:
+        print(f"\n⚠️  CRITICAL ({len(result.critical_findings)} findings):")
+        for finding in result.critical_findings:
+            print(f"  [{finding.category}] {finding.title}")
+            print(f"  {finding.description}")
+    
+    if result.high_findings:
+        print(f"\n🔴 HIGH ({len(result.high_findings)} findings):")
+        for finding in result.high_findings:
+            print(f"  [{finding.category}] {finding.title}")
+    
+    # Category analysis
+    for cat_id in ["A02", "A05", "A06", "A07"]:
+        cat_result = result.categories.get(cat_id)
+        if cat_result and cat_result.scanned:
+            print(f"\n{cat_id}: {cat_result.category_name}")
+            print(f"  Grade: {cat_result.grade}")
+            print(f"  Score: {cat_result.score}")
+            print(f"  Findings: {len(cat_result.findings)}")
+
+asyncio.run(basic_owasp_scan())
+```
+
+### Deep Scan with Reporting
+
+```python
+import asyncio
+from simple_port_checker import OwaspScanner
+from simple_port_checker.utils import OwaspPdfExporter, export_to_json, export_to_csv
+
+async def comprehensive_owasp_assessment():
+    """Complete OWASP assessment with multi-format reporting."""
+    # Deep mode scanner
+    scanner = OwaspScanner(mode="deep", timeout=15.0)
+    
+    # Scan target
+    result = await scanner.scan(
+        "example.com",
+        port=443,
+        tech_stack="nginx"
+    )
+    
+    print(f"Security Assessment: {result.target}")
+    print(f"Grade: {result.overall_grade} ({result.total_score} points)")
+    print(f"Total Findings: {len(result.all_findings)}")
+    
+    # Export to multiple formats
+    
+    # PDF report with remediation
+    pdf_exporter = OwaspPdfExporter()
+    pdf_exporter.export(
+        result,
+        "security-report.pdf",
+        tech_stack="nginx",
+        include_remediation=True
+    )
+    print("✓ PDF: security-report.pdf")
+    
+    # JSON for automation
+    export_to_json(
+        result,
+        "results.json",
+        tech_stack="nginx",
+        include_remediation=True
+    )
+    print("✓ JSON: results.json")
+    
+    # CSV for spreadsheet
+    export_to_csv(result, "findings.csv")
+    print("✓ CSV: findings.csv")
+
+asyncio.run(comprehensive_owasp_assessment())
+```
+
+### Batch Scanning
+
+```python
+import asyncio
+from simple_port_checker import OwaspScanner
+
+async def batch_owasp_scan():
+    """Scan multiple targets for OWASP vulnerabilities."""
+    scanner = OwaspScanner(mode="safe")
+    
+    targets = [
+        ("example.com", 443),
+        ("api.example.com", 443),
+        ("admin.example.com", 443)
+    ]
+    
+    # Batch scan with concurrency control
+    batch_result = await scanner.batch_scan(
+        targets,
+        tech_stack="nginx",
+        max_concurrent=3
+    )
+    
+    print(f"Scanned: {batch_result.total_scanned} targets")
+    print(f"Failed: {batch_result.failed_count}")
+    
+    # Summary by grade
+    grade_counts = {}
+    for result in batch_result.results:
+        grade = result.overall_grade
+        grade_counts[grade] = grade_counts.get(grade, 0) + 1
+    
+    print("\nGrade Distribution:")
+    for grade in sorted(grade_counts.keys()):
+        print(f"  {grade}: {grade_counts[grade]} targets")
+    
+    # Detailed results
+    for result in batch_result.results:
+        critical_count = len(result.critical_findings)
+        high_count = len(result.high_findings)
+        
+        status = "⚠️" if critical_count > 0 else "✅" if result.overall_grade in ["A", "B"] else "🔸"
+        print(f"\n{status} {result.target}: Grade {result.overall_grade}")
+        if critical_count > 0:
+            print(f"   CRITICAL: {critical_count} findings")
+        if high_count > 0:
+            print(f"   HIGH: {high_count} findings")
+
+asyncio.run(batch_owasp_scan())
+```
+
+### Category-Specific Scanning
+
+```python
+import asyncio
+from simple_port_checker import OwaspScanner
+
+async def category_specific_scan():
+    """Scan specific OWASP categories only."""
+    # Custom categories
+    scanner = OwaspScanner(
+        enabled_categories=["A02", "A05", "A06"],
+        timeout=15.0
+    )
+    
+    result = await scanner.scan("example.com", tech_stack="apache")
+    
+    print(f"Scanned Categories: {', '.join(result.categories.keys())}")
+    
+    for cat_id, cat_result in result.categories.items():
+        if cat_result.scanned:
+            print(f"\n{cat_id}: {cat_result.category_name}")
+            print(f"  Grade: {cat_result.grade}")
+            print(f"  Findings: {len(cat_result.findings)}")
+            
+            for finding in cat_result.findings:
+                print(f"    - [{finding.severity.value}] {finding.title}")
+
+asyncio.run(category_specific_scan())
+```
+
+### Accessing Remediation
+
+```python
+import asyncio
+from simple_port_checker import OwaspScanner
+from simple_port_checker.utils import get_remediation
+
+async def scan_with_remediation():
+    """Scan and access remediation guidance."""
+    scanner = OwaspScanner(mode="safe")
+    result = await scanner.scan("example.com", tech_stack="nginx")
+    
+    # Get remediation for each finding
+    for finding in result.all_findings:
+        print(f"\n[{finding.severity.value}] {finding.category}: {finding.title}")
+        print(f"Evidence: {finding.evidence}")
+        
+        # Get tech-specific remediation
+        remediation = get_remediation(finding.category, tech_stack="nginx")
+        
+        if remediation:
+            print(f"\nRemediation:")
+            print(f"  Description: {remediation.description}")
+            
+            print(f"\n  Steps:")
+            for i, step in enumerate(remediation.steps, 1):
+                print(f"    {i}. {step}")
+            
+            # Tech-specific code example
+            if "nginx" in remediation.code_examples:
+                print(f"\n  Nginx Configuration:")
+                print(f"    {remediation.code_examples['nginx']}")
+            
+            print(f"\n  References:")
+            for ref in remediation.references:
+                print(f"    - {ref}")
+
+asyncio.run(scan_with_remediation())
+```
+
+## Output Examples
+
+### Console Output (Verbose)
+
+```
+╭───────────────────── Security Scan Report ──────────────────────╮
+│ OWASP Top 10 2021 Security Assessment                           │
+│ Target: https://example.com                                     │
+│ Scan Mode: SAFE                                                 │
+│ Duration: 2.35s                                                 │
+╰─────────────────────────────────────────────────────────────────╯
+
+Overall Security Grade: D
+Total Score: 46
+Total Findings: 7
+
+A02: Cryptographic Failures
+Grade: B
+   [HIGH] Missing HSTS Header
+   Evidence: Strict-Transport-Security header not found
+
+A05: Security Misconfiguration
+Grade: D
+   [HIGH] Missing Content-Security-Policy Header
+   Evidence: Content-Security-Policy header not found
+   
+   [MEDIUM] Missing X-Frame-Options Header
+   Evidence: X-Frame-Options header not found
+   
+   [LOW] Information Disclosure via Server Header
+   Evidence: Server: cloudflare
+```
+
+### PDF Report Contents
+
+- **Cover Page**: Overall grade, scan metadata
+- **Executive Summary**: Findings breakdown by severity
+- **Category Analysis**: Detailed results per OWASP category
+- **Findings**: Title, description, evidence, severity, CWE IDs
+- **Remediation**: Tech-specific code examples and steps
+- **References**: OWASP documentation links
+
+## Use Cases
+
+1. **Security Assessments**: Automated OWASP Top 10 compliance checking
+2. **DevSecOps Integration**: CI/CD pipeline security gates
+3. **Compliance Reporting**: Generate professional security reports
+4. **Penetration Testing**: Initial reconnaissance and vulnerability discovery
+5. **Bug Bounty**: Automated finding discovery and documentation
+6. **Security Training**: Learn OWASP vulnerabilities hands-on
+
+## Related Documentation
+
+- Comprehensive Guide: `docs/owasp-scanner.md`
+- API Examples: `examples/owasp_scan_examples.py`
+- API Reference: `docs/api.md` (OWASP section)
+- Remediation Database: `src/simple_port_checker/utils/owasp_remediation.py`
+
+---
+
 # mTLS Authentication Checking
 
 ## Overview
