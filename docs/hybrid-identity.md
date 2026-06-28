@@ -1,6 +1,6 @@
 # Hybrid Identity and ADFS Endpoint Detection
 
-This document describes the new hybrid identity checking features added to Simple Port Checker.
+This document describes the hybrid identity checking features in offsec-ai.
 
 ## Overview
 
@@ -87,49 +87,49 @@ Examines DNS records for hybrid identity indicators:
 
 Check a single domain:
 ```bash
-port-checker hybrid-identity example.com
+offsec-ai hybrid-identity example.com
 ```
 
 ### Multiple Domains
 
 Check multiple domains:
 ```bash
-port-checker hybrid-identity domain1.com domain2.com domain3.com
+offsec-ai hybrid-identity domain1.com domain2.com domain3.com
 ```
 
 ### Batch Processing
 
 Check domains from a file:
 ```bash
-port-checker hybrid-identity $(cat domains.txt)
+offsec-ai hybrid-identity $(cat domains.txt)
 ```
 
 ### With Output File
 
 Save results to JSON:
 ```bash
-port-checker hybrid-identity example.com --output results.json
+offsec-ai hybrid-identity example.com --output results.json
 ```
 
 ### Verbose Mode
 
 Show detailed information including DNS records:
 ```bash
-port-checker hybrid-identity example.com --verbose
+offsec-ai hybrid-identity example.com --verbose
 ```
 
 ### Custom Timeout
 
 Set a custom timeout (default is 10 seconds):
 ```bash
-port-checker hybrid-identity example.com --timeout 15
+offsec-ai hybrid-identity example.com --timeout 15
 ```
 
 ### Concurrent Checks
 
 Adjust the number of concurrent checks (default is 10):
 ```bash
-port-checker hybrid-identity domain1.com domain2.com --concurrent 5
+offsec-ai hybrid-identity domain1.com domain2.com --concurrent 5
 ```
 
 ## Examples
@@ -137,7 +137,7 @@ port-checker hybrid-identity domain1.com domain2.com --concurrent 5
 ### Example 1: Enterprise Domain Audit
 
 ```bash
-port-checker hybrid-identity \
+offsec-ai hybrid-identity \
   contoso.com \
   fabrikam.com \
   northwind.com \
@@ -148,7 +148,7 @@ port-checker hybrid-identity \
 ### Example 2: Check Known Microsoft Domains
 
 ```bash
-port-checker hybrid-identity \
+offsec-ai hybrid-identity \
   microsoft.com \
   azure.microsoft.com \
   login.microsoftonline.com \
@@ -164,7 +164,7 @@ echo "example2.com" >> domains.txt
 echo "example3.com" >> domains.txt
 
 # Check all domains
-port-checker hybrid-identity $(cat domains.txt) --output results.json
+offsec-ai hybrid-identity $(cat domains.txt) --output results.json
 ```
 
 ## Output Format
@@ -245,14 +245,14 @@ Additionally, DNS records can provide supporting evidence:
 
 Check if your organization's domains properly expose (or hide) federation services:
 ```bash
-port-checker hybrid-identity $(cat corporate-domains.txt) --output security-audit.json
+offsec-ai hybrid-identity $(cat corporate-domains.txt) --output security-audit.json
 ```
 
 ### Migration Planning
 
 Identify which domains have hybrid identity before cloud migration:
 ```bash
-port-checker hybrid-identity \
+offsec-ai hybrid-identity \
   legacy-domain1.com \
   legacy-domain2.com \
   --verbose --output migration-assessment.json
@@ -262,14 +262,14 @@ port-checker hybrid-identity \
 
 Verify ADFS endpoints are accessible:
 ```bash
-port-checker hybrid-identity your-domain.com --verbose
+offsec-ai hybrid-identity your-domain.com --verbose
 ```
 
 ### Reconnaissance (Ethical)
 
 Identify authentication mechanisms for penetration testing (with permission):
 ```bash
-port-checker hybrid-identity target.com --output recon-results.json
+offsec-ai hybrid-identity target.com --output recon-results.json
 ```
 
 ## Technical Details
@@ -311,28 +311,28 @@ This new command complements existing Simple Port Checker features:
 ### Used with L7 Detection
 ```bash
 # First check for hybrid identity
-port-checker hybrid-identity example.com --verbose
+offsec-ai hybrid-identity example.com --verbose
 
 # Then check L7 protection
-port-checker l7-check example.com --verbose
+offsec-ai l7-check example.com --verbose
 ```
 
 ### Used with DNS Trace
 ```bash
 # Check hybrid identity with DNS details
-port-checker hybrid-identity example.com --verbose
+offsec-ai hybrid-identity example.com --verbose
 
 # Compare with DNS trace
-port-checker dns-trace example.com --verbose
+offsec-ai dns-trace example.com --verbose
 ```
 
 ### Used with Certificate Analysis
 ```bash
 # Check hybrid identity
-port-checker hybrid-identity example.com
+offsec-ai hybrid-identity example.com
 
 # Analyze ADFS certificate
-port-checker cert-check adfs.example.com
+offsec-ai cert-check adfs.example.com
 ```
 
 ## Security Considerations

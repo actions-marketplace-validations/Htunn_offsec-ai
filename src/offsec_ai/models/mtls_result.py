@@ -5,9 +5,9 @@ This module contains Pydantic models for representing mTLS check results,
 certificate information, and batch operation results.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CertificateInfo(BaseModel):
@@ -44,10 +44,7 @@ class MTLSResult(BaseModel):
     ca_bundle_path: Optional[str] = Field(None, description="Path to CA bundle used")
     timestamp: str = Field(..., description="Timestamp of the check")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    model_config = ConfigDict()
 
 
 class BatchMTLSResult(BaseModel):
@@ -75,7 +72,7 @@ class BatchMTLSResult(BaseModel):
             failed_checks=failed,
             mtls_supported_count=mtls_supported,
             mtls_required_count=mtls_required,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.now(timezone.utc).isoformat()
         )
 
 

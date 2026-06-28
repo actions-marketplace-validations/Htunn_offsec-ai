@@ -10,8 +10,8 @@ import asyncio
 import json
 from pathlib import Path
 
-from simple_port_checker import MTLSChecker
-from simple_port_checker.core.mtls_checker import generate_self_signed_cert, validate_certificate_files
+from offsec_ai import MTLSChecker
+from offsec_ai.core.mtls_checker import generate_self_signed_cert, validate_certificate_files
 
 
 async def basic_mtls_check():

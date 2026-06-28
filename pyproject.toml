@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "simple-port-checker"
-version = "1.1.2"
-description = "A comprehensive tool for checking firewall ports, L7 protection services, SSL/TLS certificate analysis, and OWASP Top 10 vulnerability scanning"
+name = "offsec-ai"
+version = "2.0.0"
+description = "Offensive-security toolkit: port scanning, L7/WAF detection, mTLS, certificate analysis, OWASP Top 10, AI/LLM OWASP Top 10 black-box probing, and MCP endpoint security scanning"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
@@ -15,19 +15,23 @@ authors = [
 maintainers = [
     {name = "htunn", email = "htunnthuthu.linux@gmail.com"}
 ]
-keywords = ["firewall", "port-scanner", "l7-protection", "waf", "network", "security", "ssl", "tls", "certificate", "certificate-analysis", "pki"]
+keywords = ["firewall", "port-scanner", "l7-protection", "waf", "network", "security", "ssl", "tls", "certificate", "certificate-analysis", "pki", "offensive-security", "red-team", "pentest", "ai", "llm", "mcp", "owasp", "ai-security", "model-context-protocol"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Internet",
     "Topic :: Security",
+    "Topic :: Security :: Cryptography",
     "Topic :: System :: Networking",
     "Topic :: System :: Systems Administration",
+    "Typing :: Typed",
 ]
 dependencies = [
     "requests>=2.31.0",
@@ -40,6 +44,8 @@ dependencies = [
     "asyncio-throttle>=1.0.2",
     "brotli>=1.0.9",
     "cryptography>=41.0.0",
+    "mcp>=1.0.0",
+    "httpx>=0.25.0",
 ]
 
 [project.optional-dependencies]
@@ -47,25 +53,32 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
+    "respx>=0.20.0",
     "black>=23.0.0",
     "isort>=5.12.0",
     "flake8>=6.0.0",
     "mypy>=1.5.0",
     "pre-commit>=3.4.0",
 ]
+ai = [
+    "openai>=1.0.0",
+    "anthropic>=0.20.0",
+]
+gemini = [
+    "google-generativeai>=0.7.0",
+]
 
 [project.urls]
-Homepage = "https://github.com/htunn/simple-port-checker"
-Repository = "https://github.com/htunn/simple-port-checker"
-Issues = "https://github.com/htunn/simple-port-checker/issues"
-Documentation = "https://github.com/htunn/simple-port-checker#readme"
+Homepage = "https://github.com/htunn/offsec-ai"
+Repository = "https://github.com/htunn/offsec-ai"
+Issues = "https://github.com/htunn/offsec-ai/issues"
+Documentation = "https://github.com/htunn/offsec-ai#readme"
 
 [project.scripts]
-port-checker = "simple_port_checker.cli:main"
-simple-port-checker = "simple_port_checker.cli:main"
+offsec-ai = "offsec_ai.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/simple_port_checker"]
+packages = ["src/offsec_ai"]
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -102,7 +115,7 @@ extend-exclude = '''
 profile = "black"
 multi_line_output = 3
 line_length = 88
-known_first_party = ["simple_port_checker"]
+known_first_party = ["offsec_ai"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -127,7 +140,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [tool.coverage.run]
-source = ["src/simple_port_checker"]
+source = ["src/offsec_ai"]
 omit = ["*/tests/*"]
 
 [tool.coverage.report]

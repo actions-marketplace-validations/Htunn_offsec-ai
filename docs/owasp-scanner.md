@@ -1,3 +1,74 @@
+# offsec-ai — OWASP Security Scanners
+
+offsec-ai ships **two** complementary OWASP scanners:
+
+| Scanner | Command | Target |
+|---------|---------|--------|
+| Web OWASP Top 10 2021 | `offsec-ai owasp-scan` | HTTP/HTTPS web hosts |
+| AI/LLM OWASP Top 10 2025 | `offsec-ai ai-owasp-scan` | LLM API endpoints (OpenAI-compatible) |
+
+---
+
+## AI / LLM OWASP Top 10 Scanner (LLM01–LLM10)
+
+Black-box scanner for LLM inference endpoints, aligned with the
+[OWASP Top 10 for Large Language Model Applications 2025](https://owasp.org/www-project-top-10-for-large-language-model-applications/).
+
+### Quick Start
+
+```bash
+# Scan a public OpenAI-compatible endpoint
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions
+
+# With API key + LLM judge (uses OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY)
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions \
+    --api-key "$MY_KEY" --llm-judge
+
+# Scan specific categories only
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions \
+    --categories LLM01,LLM06,LLM07
+
+# Export to JSON
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions \
+    --output ai-report.json
+```
+
+### LLM OWASP Categories
+
+| ID | Category | Description |
+|----|----------|-------------|
+| LLM01 | Prompt Injection | Direct/indirect prompt injection bypassing guardrails |
+| LLM02 | Insecure Output Handling | Unvalidated LLM output passed downstream |
+| LLM03 | Training Data Poisoning | Data integrity and supply chain issues |
+| LLM04 | Model Denial of Service | Resource exhaustion via adversarial inputs |
+| LLM05 | Supply Chain Vulnerabilities | Third-party model/plugin risks |
+| LLM06 | Sensitive Info Disclosure | PII, credentials, or system info leakage |
+| LLM07 | Insecure Plugin Design | Insufficient plugin/tool sandboxing |
+| LLM08 | Excessive Agency | Over-permissioned autonomous actions |
+| LLM09 | Overreliance | Hallucinations and factual inaccuracies |
+| LLM10 | Model Theft | Extraction of proprietary model behavior |
+
+### LLM Judge
+
+An optional second LLM evaluates each finding for a higher-confidence verdict:
+
+```bash
+# Auto-detects from env: OPENAI_API_KEY > ANTHROPIC_API_KEY > GEMINI_API_KEY
+export GEMINI_API_KEY="your-key"
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
+```
+
+Gemini requires **no extra package** (stdlib `urllib` only).
+OpenAI/Anthropic require `pip install offsec-ai[ai]`.
+
+### Ethics & Authorization
+
+> **Only scan LLM endpoints you own or have explicit written authorization to test.**
+> AI OWASP scanning sends adversarial prompts that may trigger security alerts, consume
+> API credits, or violate Terms of Service if used without authorization.
+
+---
+
 ## OWASP Top 10 2021 Security Scanner
 
 Comprehensive OWASP Top 10 2021 vulnerability scanning with automated detection, remediation guidance, and multi-format reporting.
@@ -6,19 +77,19 @@ Comprehensive OWASP Top 10 2021 vulnerability scanning with automated detection,
 
 ```bash
 # Basic security scan (safe-mode with passive checks)
-simple-port-checker owasp-scan example.com
+offsec-ai owasp-scan example.com
 
 # Deep scan with active probing
-simple-port-checker owasp-scan example.com --deep
+offsec-ai owasp-scan example.com --deep
 
 # Generate PDF report
-simple-port-checker owasp-scan example.com -f pdf -o security-report.pdf
+offsec-ai owasp-scan example.com -f pdf -o security-report.pdf
 
 # Scan with Nginx-specific remediation
-simple-port-checker owasp-scan example.com -t nginx --verbose
+offsec-ai owasp-scan example.com -t nginx --verbose
 
 # Multiple targets with JSON export
-simple-port-checker owasp-scan site1.com site2.com -f json -o results.json
+offsec-ai owasp-scan site1.com site2.com -f json -o results.json
 ```
 
 ### Scan Modes
@@ -30,9 +101,9 @@ simple-port-checker owasp-scan site1.com site2.com -f json -o results.json
 - Analyzes HTTP headers, TLS configuration, cookies, and banners
 
 ```bash
-simple-port-checker owasp-scan example.com
+offsec-ai owasp-scan example.com
 # or explicitly
-simple-port-checker owasp-scan example.com --safe-mode
+offsec-ai owasp-scan example.com --safe-mode
 ```
 
 #### Deep Mode
@@ -42,7 +113,7 @@ simple-port-checker owasp-scan example.com --safe-mode
 - Includes HTTP method enumeration, path fuzzing, error detection
 
 ```bash
-simple-port-checker owasp-scan example.com --deep
+offsec-ai owasp-scan example.com --deep
 ```
 
 ### OWASP Top 10 2021 Categories
@@ -98,16 +169,16 @@ simple-port-checker owasp-scan example.com --deep
 Interactive terminal output with color-coded grades and findings.
 
 ```bash
-simple-port-checker owasp-scan example.com
-simple-port-checker owasp-scan example.com --verbose  # Detailed findings
-simple-port-checker owasp-scan example.com --quiet    # Grade summary only
+offsec-ai owasp-scan example.com
+offsec-ai owasp-scan example.com --verbose  # Detailed findings
+offsec-ai owasp-scan example.com --quiet    # Grade summary only
 ```
 
 #### JSON Export
 Complete scan results with optional remediation details.
 
 ```bash
-simple-port-checker owasp-scan example.com -f json -o report.json
+offsec-ai owasp-scan example.com -f json -o report.json
 ```
 
 **JSON Structure:**
@@ -132,7 +203,7 @@ simple-port-checker owasp-scan example.com -f json -o report.json
 Flat table format for spreadsheet analysis.
 
 ```bash
-simple-port-checker owasp-scan example.com -f csv -o findings.csv
+offsec-ai owasp-scan example.com -f csv -o findings.csv
 ```
 
 **CSV Columns:**
@@ -142,7 +213,7 @@ simple-port-checker owasp-scan example.com -f csv -o findings.csv
 Professional security assessment report with remediation guidance.
 
 ```bash
-simple-port-checker owasp-scan example.com -f pdf -o security-report.pdf
+offsec-ai owasp-scan example.com -f pdf -o security-report.pdf
 ```
 
 **PDF Sections:**
@@ -158,19 +229,19 @@ Use `--tech-stack` to get remediation code examples for your infrastructure:
 
 ```bash
 # Apache web server
-simple-port-checker owasp-scan example.com -t apache -f pdf -o report.pdf
+offsec-ai owasp-scan example.com -t apache -f pdf -o report.pdf
 
 # Nginx
-simple-port-checker owasp-scan example.com -t nginx --verbose
+offsec-ai owasp-scan example.com -t nginx --verbose
 
 # Microsoft IIS
-simple-port-checker owasp-scan example.com -t iis -f json -o results.json
+offsec-ai owasp-scan example.com -t iis -f json -o results.json
 
 # Cloudflare
-simple-port-checker owasp-scan example.com -t cloudflare
+offsec-ai owasp-scan example.com -t cloudflare
 
 # Generic (default)
-simple-port-checker owasp-scan example.com -t generic
+offsec-ai owasp-scan example.com -t generic
 ```
 
 ### Category Filtering
@@ -179,13 +250,13 @@ Scan specific OWASP categories only:
 
 ```bash
 # Crypto and misconfiguration only
-simple-port-checker owasp-scan example.com -c A02,A05
+offsec-ai owasp-scan example.com -c A02,A05
 
 # All authentication and access control issues
-simple-port-checker owasp-scan example.com -c A01,A07 --deep
+offsec-ai owasp-scan example.com -c A01,A07 --deep
 
 # Single category deep dive
-simple-port-checker owasp-scan example.com -c A02 --verbose
+offsec-ai owasp-scan example.com -c A02 --verbose
 ```
 
 ### Severity Filtering
@@ -194,13 +265,13 @@ Filter findings by minimum severity:
 
 ```bash
 # Critical findings only
-simple-port-checker owasp-scan example.com --severity CRITICAL
+offsec-ai owasp-scan example.com --severity CRITICAL
 
 # High and critical
-simple-port-checker owasp-scan example.com --severity HIGH
+offsec-ai owasp-scan example.com --severity HIGH
 
 # All findings (default)
-simple-port-checker owasp-scan example.com
+offsec-ai owasp-scan example.com
 ```
 
 ### Grading System
@@ -223,13 +294,13 @@ simple-port-checker owasp-scan example.com
 #### 1. Quick Security Check
 ```bash
 # Fast passive scan for most common issues
-simple-port-checker owasp-scan example.com
+offsec-ai owasp-scan example.com
 ```
 
 #### 2. Compliance Report
 ```bash
 # Full scan with PDF report for stakeholders
-simple-port-checker owasp-scan example.com \
+offsec-ai owasp-scan example.com \
   --deep \
   -f pdf \
   -o compliance-report.pdf \
@@ -239,7 +310,7 @@ simple-port-checker owasp-scan example.com \
 #### 3. CI/CD Integration
 ```bash
 # JSON output for automated processing
-simple-port-checker owasp-scan staging.example.com \
+offsec-ai owasp-scan staging.example.com \
   -f json \
   -o owasp-results.json \
   --severity HIGH
@@ -251,7 +322,7 @@ simple-port-checker owasp-scan staging.example.com \
 #### 4. Multi-Target Assessment
 ```bash
 # Scan multiple domains
-simple-port-checker owasp-scan \
+offsec-ai owasp-scan \
   app1.example.com \
   app2.example.com \
   api.example.com \
@@ -262,7 +333,7 @@ simple-port-checker owasp-scan \
 #### 5. Focused Category Audit
 ```bash
 # Deep dive into cryptographic security
-simple-port-checker owasp-scan example.com \
+offsec-ai owasp-scan example.com \
   -c A02 \
   --deep \
   --verbose \
@@ -273,7 +344,7 @@ simple-port-checker owasp-scan example.com \
 ### Programmatic Usage
 
 ```python
-from simple_port_checker import OwaspScanner
+from offsec_ai import OwaspScanner
 import asyncio
 
 async def scan_security():
@@ -293,12 +364,12 @@ async def scan_security():
     print(f"Critical Findings: {len(result.critical_findings)}")
     
     # Export to PDF
-    from simple_port_checker.utils.exporters import OwaspPdfExporter
+    from offsec_ai.utils.exporters import OwaspPdfExporter
     exporter = OwaspPdfExporter(tech_stack="nginx")
     exporter.export(result, "security-report.pdf")
     
     # Or export to JSON
-    from simple_port_checker.utils.exporters import export_to_json
+    from offsec_ai.utils.exporters import export_to_json
     export_to_json(result, "results.json", include_remediation=True)
 
 # Run scan

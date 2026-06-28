@@ -14,7 +14,7 @@ def test_mtls_model():
     print("Testing mTLS models...")
     
     try:
-        from simple_port_checker.models.mtls_result import MTLSResult, CertificateInfo
+        from offsec_ai.models.mtls_result import MTLSResult, CertificateInfo
         from datetime import datetime
         
         # Create a test certificate info
@@ -55,7 +55,7 @@ def test_mtls_model():
         print("✓ MTLSResult created successfully")
         
         # Test JSON serialization
-        json_str = mtls_result.json(indent=2)
+        json_str = mtls_result.model_dump_json(indent=2)
         print("✓ JSON serialization works")
         print(f"JSON length: {len(json_str)} characters")
         
@@ -78,7 +78,7 @@ def test_cli_structure():
     
     try:
         # Read the CLI file to check for mTLS commands
-        cli_file = os.path.join(os.path.dirname(__file__), 'src', 'simple_port_checker', 'cli.py')
+        cli_file = os.path.join(os.path.dirname(__file__), 'src', 'offsec_ai', 'cli.py')
         
         with open(cli_file, 'r') as f:
             cli_content = f.read()
@@ -182,7 +182,7 @@ def main():
         print("🎉 All tests passed! mTLS functionality has been successfully integrated.")
         print("\nNext steps:")
         print("1. Install dependencies: pip install cryptography certifi")
-        print("2. Test CLI: port-checker mtls-check --help")
+        print("2. Test CLI: offsec-ai mtls-check --help")
         print("3. Try example: python examples/mtls_examples.py")
         return 0
     else:

@@ -9,7 +9,7 @@ on:
     branches: [ main ]
 
 env:
-  IMAGE_NAME: simple-port-checker
+  IMAGE_NAME: offsec-ai
 
 jobs:
   build:
@@ -118,7 +118,7 @@ jobs:
       - name: Extract version from previous job
         id: version
         run: |
-          VERSION=$(python -c "import tomllib; import requests; r = requests.get('https://pypi.org/pypi/simple-port-checker/json'); print(r.json()['info']['version'])")
+          VERSION=$(python -c "import tomllib; import requests; r = requests.get('https://pypi.org/pypi/offsec-ai/json'); print(r.json()['info']['version'])")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Latest PyPI version: $VERSION"
 

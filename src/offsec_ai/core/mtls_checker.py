@@ -884,7 +884,7 @@ def generate_self_signed_cert(
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography import x509
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         
         # Generate private key
         private_key = rsa.generate_private_key(
@@ -910,9 +910,9 @@ def generate_self_signed_cert(
         ).serial_number(
             x509.random_serial_number()
         ).not_valid_before(
-            datetime.utcnow()
+            datetime.now(timezone.utc).replace(tzinfo=None)
         ).not_valid_after(
-            datetime.utcnow() + timedelta(days=days_valid)
+            datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=days_valid)
         ).add_extension(
             x509.SubjectAlternativeName([
                 x509.DNSName(hostname),

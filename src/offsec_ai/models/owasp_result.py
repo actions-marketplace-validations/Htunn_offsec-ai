@@ -9,7 +9,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SeverityLevel(str, Enum):
@@ -48,12 +48,9 @@ class OwaspFinding(BaseModel):
     cwe_id: Optional[int] = Field(None, description="Common Weakness Enumeration ID")
     score: int = Field(..., description="Numeric score based on severity")
     evidence: Optional[str] = Field(None, description="Evidence or example of the finding")
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-    
+
+    model_config = ConfigDict()
+
     def __init__(self, **data):
         """Initialize finding and auto-calculate score from severity."""
         if 'score' not in data and 'severity' in data:
@@ -71,12 +68,9 @@ class OwaspCategoryResult(BaseModel):
     grade: str = Field("A", description="Letter grade for this category (A-F)")
     testable: bool = Field(True, description="Whether this category can be tested externally")
     not_testable_reason: Optional[str] = Field(None, description="Reason if not testable")
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-    
+
+    model_config = ConfigDict()
+
     def calculate_score(self) -> int:
         """Calculate total score from findings."""
         self.category_score = sum(f.score for f in self.findings)
@@ -128,12 +122,9 @@ class OwaspScanResult(BaseModel):
     categories: List[OwaspCategoryResult] = Field(default_factory=list, description="Results per category")
     scan_duration: float = Field(0.0, description="Scan duration in seconds")
     timestamp: datetime = Field(default_factory=datetime.now, description="Scan timestamp")
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-    
+
+    model_config = ConfigDict()
+
     def calculate_overall_score(self) -> int:
         """Calculate total score from all categories."""
         self.overall_score = sum(cat.category_score for cat in self.categories)
@@ -240,12 +231,9 @@ class BatchOwaspResult(BaseModel):
     failed_scans: int = Field(0, description="Number of failed scans")
     scan_mode: ScanMode = Field(..., description="Scanning mode used")
     timestamp: datetime = Field(default_factory=datetime.now, description="Batch scan timestamp")
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-    
+
+    model_config = ConfigDict()
+
     @property
     def vulnerable_targets(self) -> List[OwaspScanResult]:
         """Get targets with vulnerabilities (grade C or below)."""

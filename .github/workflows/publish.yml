@@ -3,170 +3,178 @@ name: Publish to PyPI
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
-  id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+  id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-    
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build
-    
-    - name: Build package
-      run: python -m build
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist
-        path: dist/
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
   publish:
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/simple-port-checker
-    
+      url: https://pypi.org/p/offsec-ai/2.0.0
+
     steps:
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: dist
-        path: dist/
-    
-    - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
 
   integration-test:
     needs: publish
     runs-on: ubuntu-latest
     if: success()
-    
+
     steps:
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-    
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y openssl
-    
-    - name: Wait for PyPI package availability
-      run: |
-        echo "Waiting for package to be available on PyPI..."
-        sleep 120  # Wait 2 minutes for PyPI propagation
-    
-    - name: Install latest version from PyPI
-      run: |
-        pip install --upgrade pip
-        # Install OWASP dependencies first
-        pip install httpx>=0.25.0 reportlab>=4.0.0
-        # Install the latest version that was just published
-        pip install simple-port-checker --upgrade --no-cache-dir
-        echo "Installed package version:"
-        pip show simple-port-checker
-    
-    - name: Test basic functionality
-      run: |
-        echo "Testing basic port scan..."
-        python -m simple_port_checker scan google.com --ports 443 --timeout 5
-    
-    - name: Test L7 protection detection
-      run: |
-        echo "Testing L7 protection detection..."
-        python -m simple_port_checker l7-check google.com --timeout 5
-    
-    - name: Test certificate analysis (new feature)
-      run: |
-        echo "Testing SSL/TLS certificate analysis..."
-        python -m simple_port_checker cert-check google.com --timeout 10
-        python -m simple_port_checker cert-info github.com --timeout 10
-        python -m simple_port_checker cert-chain cloudflare.com --timeout 10
-    
-    - name: Test full scan integration
-      run: |
-        echo "Testing full scan with all features..."
-        python -m simple_port_checker full-scan google.com --ports 443 --timeout 10
-    
-    - name: Test mTLS functionality
-      run: |
-        echo "Testing mTLS check..."
-        python -m simple_port_checker mtls-check google.com --timeout 10 || true  # Allow to fail
-    
-    - name: Test DNS trace
-      run: |
-        echo "Testing DNS trace..."
-        python -m simple_port_checker dns-trace google.com --timeout 10
-    
-    - name: Validate new certificate commands exist
-      run: |
-        echo "Validating new certificate commands are available..."
-        python -m simple_port_checker --help | grep -E "(cert-check|cert-chain|cert-info)"
-        echo "✅ All certificate analysis commands are available"
-    
-    - name: Test OWASP vulnerability scanner (NEW)
-      run: |
-        echo "Testing OWASP Top 10 2021 vulnerability scanner..."
-        python -m simple_port_checker owasp-scan example.com --timeout 10 --quiet
-    
-    - name: Test OWASP scan with categories
-      run: |
-        echo "Testing OWASP scan with specific categories..."
-        python -m simple_port_checker owasp-scan google.com -c A02,A05 --timeout 10
-    
-    - name: Test OWASP JSON export
-      run: |
-        echo "Testing OWASP JSON export..."
-        python -m simple_port_checker owasp-scan example.com -f json -o /tmp/owasp-test.json --timeout 10
-        if [ -f /tmp/owasp-test.json ]; then
-          echo "✅ JSON export successful"
-          cat /tmp/owasp-test.json | python -m json.tool > /dev/null
-          echo "✅ JSON is valid"
-        fi
-    
-    - name: Test OWASP CSV export
-      run: |
-        echo "Testing OWASP CSV export..."
-        python -m simple_port_checker owasp-scan example.com -f csv -o /tmp/owasp-test.csv --timeout 10
-        if [ -f /tmp/owasp-test.csv ]; then
-          echo "✅ CSV export successful"
-          head -n 5 /tmp/owasp-test.csv
-        fi
-    
-    - name: Validate OWASP command exists
-      run: |
-        echo "Validating OWASP scan command is available..."
-        python -m simple_port_checker --help | grep "owasp-scan"
-        echo "✅ OWASP vulnerability scanner is available"
-    
-    - name: Test OWASP 2025 categories (NEW)
-      run: |
-        echo "Testing OWASP Top 10 2025 categories..."
-        python -m simple_port_checker owasp-scan example.com -c A03_2025,A10_2025 --timeout 10 --quiet
-    
-    - name: Test mixed OWASP 2021/2025 scan
-      run: |
-        echo "Testing mixed OWASP 2021 and 2025 categories..."
-        python -m simple_port_checker owasp-scan example.com -c A02,A05,A03_2025,A10_2025 --timeout 10
-    
-    - name: Validate OWASP 2025 help text
-      run: |
-        echo "Validating OWASP 2025 support in help..."
-        python -m simple_port_checker owasp-scan --help | grep "2025"
-        echo "✅ OWASP Top 10 2025 support verified"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssl
+
+      - name: Wait for PyPI package availability
+        run: |
+          echo "Waiting for package to be available on PyPI..."
+          sleep 90
+
+      - name: Install latest version from PyPI
+        run: |
+          pip install --upgrade pip
+          pip install offsec-ai --upgrade --no-cache-dir
+          echo "Installed package version:"
+          pip show offsec-ai
+
+      - name: Validate CLI entry point and help
+        run: |
+          offsec-ai --version
+          offsec-ai --help
+          # Verify all key command groups are present
+          offsec-ai --help | grep -E "(scan|l7-check|cert-check|mtls-check|owasp-scan|ai-owasp-scan|mcp-scan|mcp-attack|full-scan)"
+
+      - name: Test basic port scan
+        run: |
+          echo "Testing basic port scan..."
+          offsec-ai scan google.com --ports 443 --timeout 5
+
+      - name: Test L7 protection detection
+        run: |
+          echo "Testing L7 protection detection..."
+          offsec-ai l7-check google.com --timeout 5
+
+      - name: Test certificate analysis
+        run: |
+          echo "Testing SSL/TLS certificate analysis..."
+          offsec-ai cert-check google.com --timeout 10
+          offsec-ai cert-chain github.com --timeout 10
+
+      - name: Test full scan
+        run: |
+          echo "Testing full scan..."
+          offsec-ai full-scan google.com --ports 443 --timeout 10
+
+      - name: Test mTLS check
+        run: |
+          echo "Testing mTLS check..."
+          offsec-ai mtls-check google.com --timeout 10 || true
+
+      - name: Test DNS trace
+        run: |
+          echo "Testing DNS trace..."
+          offsec-ai dns-trace google.com --timeout 10
+
+      - name: Test MCP scan (passive, no auth)
+        run: |
+          echo "Testing MCP scan against public endpoint..."
+          offsec-ai mcp-scan https://mcp.simpleportchecker.com/mcp --timeout 30 || true
+
+      - name: Test OWASP web scan
+        run: |
+          echo "Testing OWASP web scan (safe mode)..."
+          offsec-ai owasp-scan google.com --timeout 15
+          echo "✅ All certificate analysis commands are available"
+
+      - name: Test OWASP vulnerability scanner (NEW)
+        run: |
+          echo "Testing OWASP Top 10 2021 vulnerability scanner..."
+          python -m offsec_ai owasp-scan example.com --timeout 10 --quiet
+
+      - name: Test OWASP scan with categories
+        run: |
+          echo "Testing OWASP scan with specific categories..."
+          python -m offsec_ai owasp-scan google.com -c A02,A05 --timeout 10
+
+      - name: Test OWASP JSON export
+        run: |
+          echo "Testing OWASP JSON export..."
+          python -m offsec_ai owasp-scan example.com -f json -o /tmp/owasp-test.json --timeout 10
+          if [ -f /tmp/owasp-test.json ]; then
+            echo "✅ JSON export successful"
+            cat /tmp/owasp-test.json | python -m json.tool > /dev/null
+            echo "✅ JSON is valid"
+          fi
+
+      - name: Test OWASP CSV export
+        run: |
+          echo "Testing OWASP CSV export..."
+          python -m offsec_ai owasp-scan example.com -f csv -o /tmp/owasp-test.csv --timeout 10
+          if [ -f /tmp/owasp-test.csv ]; then
+            echo "✅ CSV export successful"
+            head -n 5 /tmp/owasp-test.csv
+          fi
+
+      - name: Validate OWASP command exists
+        run: |
+          echo "Validating OWASP scan command is available..."
+          python -m offsec_ai --help | grep "owasp-scan"
+          echo "✅ OWASP vulnerability scanner is available"
+
+      - name: Test OWASP 2025 categories (NEW)
+        run: |
+          echo "Testing OWASP Top 10 2025 categories..."
+          python -m offsec_ai owasp-scan example.com -c A03_2025,A10_2025 --timeout 10 --quiet
+
+      - name: Test mixed OWASP 2021/2025 scan
+        run: |
+          echo "Testing mixed OWASP 2021 and 2025 categories..."
+          python -m offsec_ai owasp-scan example.com -c A02,A05,A03_2025,A10_2025 --timeout 10
+
+      - name: Validate OWASP 2025 help text
+        run: |
+          echo "Validating OWASP 2025 support in help..."
+          python -m offsec_ai owasp-scan --help | grep "2025"
+          echo "✅ OWASP Top 10 2025 support verified"

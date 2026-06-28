@@ -1,7 +1,8 @@
 """
-Command Line Interface for Simple Port Checker.
+Command Line Interface for offsec-ai.
 
-This module provides a comprehensive CLI for port scanning and L7 protection detection.
+Comprehensive offensive-security CLI: port scanning, L7/WAF detection, mTLS, certificate
+analysis, OWASP Top 10, AI/LLM OWASP Top 10 black-box probing, and MCP endpoint security.
 """
 
 import asyncio
@@ -32,10 +33,16 @@ from .core.mtls_checker import MTLSChecker
 from .core.cert_analyzer import CertificateAnalyzer
 from .core.hybrid_identity_checker import HybridIdentityChecker, HybridIdentityResult
 from .core.owasp_scanner import OwaspScanner
+from .core.ai_owasp_scanner import LLMOwaspScanner
+from .core.mcp_scanner import MCPScanner
+from .core.mcp_attacker import MCPAttacker, AuthorizationRequired
+from .core.llm_judge import LLMJudge
 from .models.scan_result import ScanResult, BatchScanResult
 from .models.l7_result import L7Result, BatchL7Result
 from .models.mtls_result import MTLSResult, BatchMTLSResult
 from .models.owasp_result import OwaspScanResult, SeverityLevel
+from .models.ai_owasp_result import LLMScanResult, LLMScanMode, LLMSeverity
+from .models.mcp_result import MCPScanResult, MCPAttackReport, MCPVulnSeverity
 from .utils.common_ports import TOP_PORTS, get_service_name, get_port_description
 from .utils.exporters import OwaspPdfExporter, export_to_csv, export_to_json
 from . import __version__
@@ -43,11 +50,32 @@ from . import __version__
 
 console = Console()
 
+LOGO = r"""[bold red]
+  ██████╗ ███████╗███████╗███████╗███████╗ ██████╗       █████╗ ██╗
+ ██╔═══██╗██╔════╝██╔════╝██╔════╝██╔════╝██╔════╝      ██╔══██╗██║
+ ██║   ██║█████╗  █████╗  ███████╗█████╗  ██║     █████╗███████║██║
+ ██║   ██║██╔══╝  ██╔══╝  ╚════██║██╔══╝  ██║     ╚════╝██╔══██║██║
+ ╚██████╔╝██║     ██║     ███████║███████╗╚██████╗       ██║  ██║██║
+  ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚══════╝ ╚═════╝       ╚═╝  ╚═╝╚═╝[/bold red]
+[dim]  Offensive-Security Toolkit · AI/LLM · MCP · Red-Team  [/dim]"""
 
-@click.group()
+def _print_logo() -> None:
+    console.print(LOGO)
+    console.print()
+
+
+class LogoGroup(click.Group):
+    """Click Group that prints the ASCII logo before every invocation."""
+
+    def make_context(self, info_name, args, **kwargs):
+        _print_logo()
+        return super().make_context(info_name, args, **kwargs)
+
+
+@click.group(cls=LogoGroup)
 @click.version_option(version=__version__)
 def main():
-    """Simple Port Checker - A comprehensive tool for checking firewall ports and L7 protection."""
+    """offsec-ai — offensive-security toolkit for authorized red-team engagements."""
     pass
 
 
@@ -193,19 +221,19 @@ def mtls_check(targets, port, timeout, client_cert, client_key, ca_bundle, outpu
     Examples:
     \b
         # Basic mTLS check
-        port-checker mtls-check api.example.com
+        offsec-ai mtls-check api.example.com
         
         # Check with client certificates
-        port-checker mtls-check api.example.com --client-cert client.crt --client-key client.key
+        offsec-ai mtls-check api.example.com --client-cert client.crt --client-key client.key
         
         # Batch check multiple APIs
-        port-checker mtls-check api1.com api2.com:8443 --concurrent 10 --verbose
+        offsec-ai mtls-check api1.com api2.com:8443 --concurrent 10 --verbose
         
         # Enterprise security audit
-        port-checker mtls-check $(cat production-apis.txt) --output audit-results.json
+        offsec-ai mtls-check $(cat production-apis.txt) --output audit-results.json
         
         # Custom configuration
-        port-checker mtls-check api.example.com --timeout 30 --max-retries 5 --retry-delay 2.0
+        offsec-ai mtls-check api.example.com --timeout 30 --max-retries 5 --retry-delay 2.0
     
     Exit Codes:
         0: All checks completed successfully
@@ -253,16 +281,16 @@ def mtls_gen_cert(hostname, cert_path, key_path, days, key_size, country, organi
     Examples:
     \b
         # Basic certificate generation
-        port-checker mtls-gen-cert test-client.example.com
+        offsec-ai mtls-gen-cert test-client.example.com
         
         # Custom validity period and key size
-        port-checker mtls-gen-cert api-client.com --days 90 --key-size 4096
+        offsec-ai mtls-gen-cert api-client.com --days 90 --key-size 4096
         
         # Custom output paths
-        port-checker mtls-gen-cert client.internal --cert-path /etc/ssl/client.crt --key-path /etc/ssl/private/client.key
+        offsec-ai mtls-gen-cert client.internal --cert-path /etc/ssl/client.crt --key-path /etc/ssl/private/client.key
         
         # Custom subject information
-        port-checker mtls-gen-cert test.company.com --country GB --organization "ACME Corp"
+        offsec-ai mtls-gen-cert test.company.com --country GB --organization "ACME Corp"
     
     Security Notes:
         - Use strong key sizes (2048+ bits) for production
@@ -314,16 +342,16 @@ def mtls_validate_cert(cert_path, key_path, check_expiry, check_chain, ca_bundle
     Examples:
     \b
         # Basic validation
-        port-checker mtls-validate-cert client.crt client.key
+        offsec-ai mtls-validate-cert client.crt client.key
         
         # Check expiration date
-        port-checker mtls-validate-cert client.crt client.key --check-expiry
+        offsec-ai mtls-validate-cert client.crt client.key --check-expiry
         
         # Validate certificate chain
-        port-checker mtls-validate-cert client.crt client.key --check-chain --ca-bundle ca-bundle.pem
+        offsec-ai mtls-validate-cert client.crt client.key --check-chain --ca-bundle ca-bundle.pem
         
         # Detailed output
-        port-checker mtls-validate-cert client.crt client.key --verbose --check-expiry
+        offsec-ai mtls-validate-cert client.crt client.key --verbose --check-expiry
     
     Exit Codes:
         0: Certificate and key are valid
@@ -974,16 +1002,16 @@ def hybrid_identity(targets, timeout, output, verbose, concurrent):
     Examples:
     \b
         # Check single domain
-        port-checker hybrid-identity example.com
+        offsec-ai hybrid-identity example.com
         
         # Check multiple domains
-        port-checker hybrid-identity domain1.com domain2.com domain3.com
+        offsec-ai hybrid-identity domain1.com domain2.com domain3.com
         
         # Batch check with output
-        port-checker hybrid-identity $(cat domains.txt) --output results.json
+        offsec-ai hybrid-identity $(cat domains.txt) --output results.json
         
         # Verbose output with DNS details
-        port-checker hybrid-identity company.com --verbose
+        offsec-ai hybrid-identity company.com --verbose
     
     The tool will identify:
     - Hybrid identity deployments
@@ -1390,8 +1418,8 @@ def _display_certificate_info(cert_chain, show_pem: bool, verbose: bool):
     details_table.add_row("Valid Until", server_cert.not_after.strftime("%Y-%m-%d %H:%M:%S UTC"))
     
     # Calculate days until expiration
-    from datetime import datetime
-    now = datetime.utcnow()
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     days_until_expiry = (server_cert.not_after - now).days
     expiry_color = "green" if days_until_expiry > 30 else "orange" if days_until_expiry > 7 else "red"
     details_table.add_row("Days Until Expiry", f"[{expiry_color}]{days_until_expiry}[/{expiry_color}]")
@@ -2066,19 +2094,19 @@ def owasp_scan(targets, deep, categories, tech_stack, format, output, severity, 
     Examples:
     
         # Basic scan with console output
-        simple-port-checker owasp-scan example.com
+        offsec-ai owasp-scan example.com
         
         # Deep scan with PDF report
-        simple-port-checker owasp-scan example.com --deep -f pdf -o report.pdf
+        offsec-ai owasp-scan example.com --deep -f pdf -o report.pdf
         
         # Scan specific categories with JSON output
-        simple-port-checker owasp-scan example.com -c A02,A05 -f json -o results.json
+        offsec-ai owasp-scan example.com -c A02,A05 -f json -o results.json
         
         # OWASP 2025 categories
-        simple-port-checker owasp-scan example.com -c A03_2025,A10_2025 --verbose
+        offsec-ai owasp-scan example.com -c A03_2025,A10_2025 --verbose
         
         # Multiple targets with severity filter
-        simple-port-checker owasp-scan site1.com site2.com --severity HIGH --verbose
+        offsec-ai owasp-scan site1.com site2.com --severity HIGH --verbose
     """
     
     # Validate output file for non-console formats
@@ -2331,3 +2359,406 @@ def _get_severity_color(severity: SeverityLevel) -> str:
     }
     return colors.get(severity, "white")
 
+
+
+# ============================================================================
+# ai-owasp-scan — AI/LLM OWASP Top 10 black-box scanner
+# ============================================================================
+
+@main.command("ai-owasp-scan")
+@click.argument("target_url")
+@click.option("--mode", type=click.Choice(["safe", "deep"]), default="safe", show_default=True,
+              help="safe: benign probes only. deep: full adversarial suite.")
+@click.option("--categories", multiple=True, metavar="LLMxx",
+              help="Limit to specific LLM categories e.g. --categories LLM01 --categories LLM07")
+@click.option("--api-format", type=click.Choice(["openai", "generic"]), default="openai",
+              show_default=True, help="API request/response format.")
+@click.option("--model", default="gpt-3.5-turbo", show_default=True,
+              help="Model name to pass in OpenAI-format requests.")
+@click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE",
+              help="Extra HTTP headers, e.g. --header 'Authorization:Bearer sk-...'")
+@click.option("--judge", is_flag=True, default=False,
+              help="Use LLM judge (requires OPENAI_API_KEY or ANTHROPIC_API_KEY env var).")
+@click.option("--format", "output_format", type=click.Choice(["console", "json"]),
+              default="console", show_default=True)
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Save JSON result to file.")
+def ai_owasp_scan(target_url, mode, categories, api_format, model, extra_headers,
+                  judge, output_format, output):
+    """Probe a live LLM/AI endpoint for AI OWASP Top 10 (2025) vulnerabilities.
+
+    TARGET_URL is the full chat completions endpoint URL,
+    e.g. https://api.openai.com/v1/chat/completions
+    """
+    asyncio.run(_run_ai_owasp_scan(
+        target_url=target_url, mode=mode,
+        categories=list(categories), api_format=api_format,
+        model=model, extra_headers=list(extra_headers),
+        use_judge=judge, output_format=output_format, output=output,
+    ))
+
+
+async def _run_ai_owasp_scan(
+    target_url, mode, categories, api_format, model, extra_headers,
+    use_judge, output_format, output
+):
+    headers = {}
+    for h in extra_headers:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+
+    judge = None
+    if use_judge:
+        j = LLMJudge.from_env()
+        if j.is_available():
+            judge = j
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
+        else:
+            console.print("[yellow]Warning: --judge flag set but no provider API key found. "
+                          "Set OPENAI_API_KEY or ANTHROPIC_API_KEY.[/yellow]")
+
+    scanner = LLMOwaspScanner(
+        endpoint=target_url,
+        mode=mode,
+        categories=categories or None,
+        api_format=api_format,
+        headers=headers,
+        model=model,
+        judge=judge,
+    )
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Probing {target_url}...", total=None)
+        result: LLMScanResult = await scanner.scan()
+        progress.stop_task(task)
+
+    if output_format == "json" or output:
+        import json
+        data = result.model_dump(mode="json")
+        if output:
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Results saved to {output}[/green]")
+        if output_format == "json":
+            console.print_json(json.dumps(data, default=str))
+        return
+
+    _display_ai_owasp_result(result)
+
+
+def _display_ai_owasp_result(result: LLMScanResult) -> None:
+    grade_color = {"A": "green", "B": "green", "C": "yellow", "D": "red", "F": "bold red"}
+    color = grade_color.get(result.overall_grade, "white")
+
+    console.print(Panel(
+        f"[bold]Target:[/bold] {result.target}\n"
+        f"[bold]Mode:[/bold] {result.scan_mode.value}\n"
+        f"[bold]Grade:[/bold] [{color}]{result.overall_grade}[/{color}]  "
+        f"[bold]Score:[/bold] {result.overall_score:.1f}/10  "
+        f"[bold]Duration:[/bold] {result.scan_duration:.1f}s\n"
+        f"[bold]Critical:[/bold] [red]{len(result.critical_findings)}[/red]  "
+        f"[bold]High:[/bold] [yellow]{len(result.high_findings)}[/yellow]  "
+        f"[bold]Total findings:[/bold] {len(result.all_findings)}",
+        title="[bold cyan]AI/LLM OWASP Top 10 Scan Results[/bold cyan]",
+        border_style="cyan",
+    ))
+
+    for cat in result.categories:
+        if not cat.testable:
+            console.print(f"  [dim]{cat.category_id} {cat.category_name}: "
+                          f"Not testable — {cat.not_testable_reason}[/dim]")
+            continue
+
+        cat_color = grade_color.get(cat.grade, "white")
+        console.print(
+            f"\n  [{cat_color}][{cat.grade}][/{cat_color}] "
+            f"[bold]{cat.category_id}[/bold] {cat.category_name} "
+            f"({len(cat.findings)} finding(s))"
+        )
+
+        for finding in cat.findings:
+            sev_color = {
+                LLMSeverity.CRITICAL: "bold red",
+                LLMSeverity.HIGH: "red",
+                LLMSeverity.MEDIUM: "yellow",
+                LLMSeverity.LOW: "cyan",
+            }.get(finding.severity, "white")
+            console.print(f"    [{sev_color}]{finding.severity.value.upper()}[/{sev_color}] "
+                          f"{finding.title}")
+            if finding.evidence:
+                console.print(f"      [dim]Evidence: {finding.evidence[:120]}[/dim]")
+
+
+# ============================================================================
+# mcp-scan — MCP endpoint security scanner
+# ============================================================================
+
+@main.command("mcp-scan")
+@click.argument("target")
+@click.option("--transport", type=click.Choice(["http", "sse", "stdio"]), default="http",
+              show_default=True, help="MCP transport protocol.")
+@click.option("--cmd", multiple=True, metavar="ARG",
+              help="Command to launch MCP server for stdio transport, "
+                   "e.g. --cmd python --cmd server.py")
+@click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE",
+              help="Extra HTTP headers.")
+@click.option("--timeout", default=15.0, show_default=True, help="Request timeout (seconds).")
+@click.option("--format", "output_format", type=click.Choice(["console", "json"]),
+              default="console", show_default=True)
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Save JSON result to file.")
+def mcp_scan(target, transport, cmd, extra_headers, timeout, output_format, output):
+    """Scan an MCP (Model Context Protocol) endpoint for security vulnerabilities and CVEs.
+
+    TARGET is the MCP endpoint URL (HTTP/SSE) or 'stdio://local' for a local server.
+
+    Examples:
+        offsec-ai mcp-scan https://mcp.example.com/mcp
+        offsec-ai mcp-scan stdio://local --transport stdio --cmd python server.py
+    """
+    asyncio.run(_run_mcp_scan(
+        target=target, transport=transport, cmd=list(cmd),
+        extra_headers=list(extra_headers), timeout=timeout,
+        output_format=output_format, output=output,
+    ))
+
+
+async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, output_format, output):
+    headers = {}
+    for h in extra_headers:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+
+    scanner = MCPScanner(
+        target=target,
+        transport=transport,
+        cmd=cmd,
+        headers=headers,
+        timeout=timeout,
+    )
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Scanning MCP endpoint {target}...", total=None)
+        result: MCPScanResult = await scanner.scan()
+        progress.stop_task(task)
+
+    if result.error:
+        console.print(f"[bold red]Error:[/bold red] {result.error}")
+        if result.auth_posture and result.auth_posture.requires_auth:
+            console.print(
+                f"[yellow]Auth required[/yellow] — type: [bold]{result.auth_posture.auth_type}[/bold]. "
+                "Use [bold]--header[/bold] to pass credentials, e.g. "
+                "[bold]--header 'Authorization: Bearer <token>'[/bold]"
+            )
+        if output:
+            import json
+            data = result.model_dump(mode="json")
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Partial results saved to {output}[/green]")
+        return
+
+    if output_format == "json" or output:
+        import json
+        data = result.model_dump(mode="json")
+        if output:
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Results saved to {output}[/green]")
+        if output_format == "json":
+            console.print_json(json.dumps(data, default=str))
+        return
+
+    _display_mcp_scan_result(result)
+
+
+def _display_mcp_scan_result(result: MCPScanResult) -> None:
+    all_vulns = result.all_vulns
+    critical = [v for v in all_vulns if v.severity == MCPVulnSeverity.CRITICAL]
+    high = [v for v in all_vulns if v.severity == MCPVulnSeverity.HIGH]
+
+    panel_color = "red" if critical else ("yellow" if high else "green")
+    console.print(Panel(
+        f"[bold]Target:[/bold] {result.target}\n"
+        f"[bold]Transport:[/bold] {result.transport.value}\n"
+        f"[bold]Server:[/bold] {result.server_info.name} {result.server_info.version} "
+        f"(protocol {result.server_info.protocol_version})\n"
+        f"[bold]Tools:[/bold] {len(result.tools)}  "
+        f"[bold]Resources:[/bold] {len(result.resources)}  "
+        f"[bold]Prompts:[/bold] {len(result.prompts)}\n"
+        f"[bold]Auth:[/bold] {'[red]NONE[/red]' if result.auth_posture.unauthenticated_access else '[green]Required[/green]'}\n"
+        f"[bold]Vulnerabilities:[/bold] [red]{len(critical)} critical[/red]  "
+        f"[yellow]{len(high)} high[/yellow]  {len(all_vulns)} total  "
+        f"[bold]CVE matches:[/bold] {len(result.cve_matches)}\n"
+        f"[bold]Duration:[/bold] {result.scan_duration:.1f}s",
+        title="[bold cyan]MCP Security Scan Results[/bold cyan]",
+        border_style=panel_color,
+    ))
+
+    # Tools table
+    if result.tools:
+        table = Table(title="Enumerated Tools", show_header=True, header_style="bold blue")
+        table.add_column("Name", style="cyan")
+        table.add_column("Risky?", justify="center")
+        table.add_column("Description (truncated)")
+        for tool in result.tools:
+            risky = "[red]YES[/red]" if tool.has_dangerous_keywords else "[green]no[/green]"
+            table.add_row(tool.name, risky, tool.description[:80])
+        console.print(table)
+
+    # Vulnerabilities
+    if all_vulns:
+        console.print("\n[bold]Vulnerabilities Found:[/bold]")
+        for vuln in all_vulns:
+            sev_color = {
+                MCPVulnSeverity.CRITICAL: "bold red",
+                MCPVulnSeverity.HIGH: "red",
+                MCPVulnSeverity.MEDIUM: "yellow",
+                MCPVulnSeverity.LOW: "cyan",
+            }.get(vuln.severity, "white")
+            cve = f" [{vuln.cve_id}]" if vuln.cve_id else ""
+            console.print(
+                f"  [{sev_color}]{vuln.severity.value.upper()}[/{sev_color}] "
+                f"[bold]{vuln.vuln_id}[/bold]{cve}: {vuln.title}"
+            )
+            if vuln.evidence:
+                console.print(f"    [dim]Evidence: {vuln.evidence[:100]}[/dim]")
+            if vuln.remediation:
+                console.print(f"    [green]Fix: {vuln.remediation[:100]}[/green]")
+
+
+# ============================================================================
+# mcp-attack — MCP endpoint attacker (gated, authorized use only)
+# ============================================================================
+
+@main.command("mcp-attack")
+@click.argument("target")
+@click.option("--i-have-authorization", "authorized", is_flag=True, default=False, required=True,
+              help="REQUIRED: Confirms you have explicit written authorization to test this target.")
+@click.option("--transport", type=click.Choice(["http", "sse", "stdio"]), default="http",
+              show_default=True)
+@click.option("--cmd", multiple=True, metavar="ARG",
+              help="Command for stdio transport.")
+@click.option("--mode", type=click.Choice(["safe", "deep"]), default="safe", show_default=True,
+              help="safe: auth-bypass probes only. deep: full attack suite.")
+@click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE")
+@click.option("--timeout", default=15.0, show_default=True)
+@click.option("--format", "output_format", type=click.Choice(["console", "json"]),
+              default="console", show_default=True)
+@click.option("--output", "-o", type=click.Path(), default=None)
+def mcp_attack(target, authorized, transport, cmd, mode, extra_headers, timeout,
+               output_format, output):
+    """Perform authorized active security testing against an MCP endpoint.
+
+    \b
+    ⚠  WARNING: This command sends active attack payloads.
+    Only run against systems you have EXPLICIT WRITTEN AUTHORIZATION to test.
+    Unauthorized use is illegal.
+
+    \b
+    Required flag: --i-have-authorization
+
+    Recommend running mcp-scan first to enumerate the target before attacking:
+        offsec-ai mcp-scan https://mcp.example.com/mcp
+        offsec-ai mcp-attack https://mcp.example.com/mcp --i-have-authorization --mode deep
+    """
+    if not authorized:
+        console.print("[bold red]Error:[/bold red] --i-have-authorization flag is required. "
+                      "Only use this against systems you are authorized to test.")
+        raise SystemExit(1)
+
+    asyncio.run(_run_mcp_attack(
+        target=target, transport=transport, cmd=list(cmd),
+        mode=mode, extra_headers=list(extra_headers),
+        timeout=timeout, output_format=output_format, output=output,
+    ))
+
+
+async def _run_mcp_attack(target, transport, cmd, mode, extra_headers, timeout,
+                           output_format, output):
+    headers = {}
+    for h in extra_headers:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+
+    # First run a scan to guide attacks
+    scan_result = None
+    if mode == "deep":
+        console.print("[cyan]Running reconnaissance scan first...[/cyan]")
+        scanner = MCPScanner(target=target, transport=transport, cmd=cmd,
+                             headers=headers, timeout=timeout)
+        try:
+            scan_result = await scanner.scan()
+        except Exception:
+            pass
+
+    attacker = MCPAttacker(authorized=True)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Attacking {target} ({mode} mode)...", total=None)
+        report: MCPAttackReport = await attacker.attack(
+            target=target, transport=transport, mode=mode,
+            headers=headers, timeout=timeout, scan_result=scan_result,
+        )
+        progress.stop_task(task)
+
+    if output_format == "json" or output:
+        import json
+        data = report.model_dump(mode="json")
+        if output:
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Results saved to {output}[/green]")
+        if output_format == "json":
+            console.print_json(json.dumps(data, default=str))
+        return
+
+    _display_mcp_attack_report(report)
+
+
+def _display_mcp_attack_report(report: MCPAttackReport) -> None:
+    triggered = report.triggered_results
+    panel_color = "red" if triggered else "green"
+
+    console.print(Panel(
+        f"[bold]Target:[/bold] {report.target}\n"
+        f"[bold]Transport:[/bold] {report.transport.value}\n"
+        f"[bold]Attacks run:[/bold] {report.attacks_run}  "
+        f"[bold]Triggered:[/bold] [{'red' if triggered else 'green'}]{report.attacks_triggered}[/{'red' if triggered else 'green'}]\n"
+        f"[bold]Duration:[/bold] {report.scan_duration:.1f}s\n"
+        f"[dim]{report.authorization_note}[/dim]",
+        title="[bold red]MCP Attack Report[/bold red]",
+        border_style=panel_color,
+    ))
+
+    if triggered:
+        console.print("\n[bold red]Triggered Attacks:[/bold red]")
+        for r in triggered:
+            sev_color = {
+                MCPVulnSeverity.CRITICAL: "bold red",
+                MCPVulnSeverity.HIGH: "red",
+                MCPVulnSeverity.MEDIUM: "yellow",
+            }.get(r.severity, "white")
+            component = r.tool_name or r.resource_uri or "endpoint"
+            console.print(
+                f"  [{sev_color}]{r.severity.value.upper()}[/{sev_color}] "
+                f"[bold]{r.attack_id}[/bold] on {component}: {r.title}"
+            )
+            if r.evidence:
+                console.print(f"    [dim]Evidence: {r.evidence[:120]}[/dim]")
+    else:
+        console.print("\n[green]No attacks triggered. Target appears resilient to tested probes.[/green]")

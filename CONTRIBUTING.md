@@ -12,8 +12,8 @@ This project adheres to a code of conduct. By participating, you are expected to
 
 1. **Fork and clone the repository**
    ```bash
-   git clone https://github.com/yourusername/simple-port-checker.git
-   cd simple-port-checker
+   git clone https://github.com/yourusername/offsec-ai.git
+   cd offsec-ai
    ```
 
 2. **Set up development environment**
@@ -33,7 +33,7 @@ This project adheres to a code of conduct. By participating, you are expected to
 4. **Verify setup**
    ```bash
    make test
-   port-checker --help
+   offsec-ai --help
    ```
 
 ### Development Workflow
@@ -97,7 +97,7 @@ async def scan_port(host: str, port: int, timeout: float = 3.0) -> PortResult:
 ### Code Organization
 
 ```
-src/simple_port_checker/
+src/offsec_ai/
 ├── __init__.py           # Package exports
 ├── core/                 # Core functionality
 │   ├── port_scanner.py   # Port scanning logic

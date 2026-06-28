@@ -16,14 +16,14 @@ def test_imports():
     print("Testing imports...")
     
     try:
-        from simple_port_checker.models.mtls_result import MTLSResult, CertificateInfo, BatchMTLSResult
+        from offsec_ai.models.mtls_result import MTLSResult, CertificateInfo, BatchMTLSResult
         print("✓ mTLS models imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import mTLS models: {e}")
         return False
     
     try:
-        from simple_port_checker.core.mtls_checker import MTLSChecker
+        from offsec_ai.core.mtls_checker import MTLSChecker
         print("✓ MTLSChecker imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import MTLSChecker: {e}")
@@ -35,7 +35,7 @@ def test_mtls_result_model():
     """Test the MTLSResult model."""
     print("\nTesting MTLSResult model...")
     
-    from simple_port_checker.models.mtls_result import MTLSResult, CertificateInfo
+    from offsec_ai.models.mtls_result import MTLSResult, CertificateInfo
     from datetime import datetime
     
     # Test CertificateInfo
@@ -76,7 +76,7 @@ def test_mtls_result_model():
     print("✓ MTLSResult model created successfully")
     
     # Test JSON serialization
-    json_data = result.json()
+    json_data = result.model_dump_json()
     print("✓ MTLSResult JSON serialization works")
     
     return True
@@ -86,7 +86,7 @@ def test_cli_help():
     print("\nTesting CLI help...")
     
     try:
-        from simple_port_checker.cli import main
+        from offsec_ai.cli import main
         import click.testing
         
         runner = click.testing.CliRunner()

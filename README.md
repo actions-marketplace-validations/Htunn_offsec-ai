@@ -1,2291 +1,543 @@
-# Simple Port Checker   
-[![Docker Hub](https://img.shields.io/docker/pulls/htunnthuthu/simple-port-checker)](https://hub.docker.com/r/htunnthuthu/simple-port-checker) [![Docker Image Version](https://img.shields.io/docker/v/htunnthuthu/simple-port-checker?label=docker%20version)](https://hub.docker.com/r/htunnthuthu/simple-port-checker/tags)
+<p align="center">
+  <img src="docs/assets/logo.svg" alt="offsec-ai" width="520"/>
+</p>
 
-[![PyPI - Version](https://img.shields.io/pypi/v/simple-port-checker)](https://pypi.org/project/simple-port-checker/) [![PyPI - Downloads](https://img.shields.io/pypi/dm/simple-port-checker)](https://pypistats.org/packages/simple-port-checker) [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/simple-port-checker)](https://pypi.org/project/simple-port-checker/) [![PyPI Stats](https://img.shields.io/badge/PyPI%20Stats-simple--port--checker-blue)](https://pypistats.org/packages/simple-port-checker)
+<p align="center">
+  <a href="https://pypi.org/project/offsec-ai/"><img src="https://img.shields.io/pypi/v/offsec-ai" alt="PyPI Version"/></a>
+  <a href="https://pypistats.org/packages/offsec-ai"><img src="https://img.shields.io/pypi/dm/offsec-ai" alt="PyPI Downloads"/></a>
+  <a href="https://pypi.org/project/offsec-ai/"><img src="https://img.shields.io/pypi/pyversions/offsec-ai" alt="Python Version"/></a>
+  <a href="https://hub.docker.com/r/htunnthuthu/offsec-ai"><img src="https://img.shields.io/docker/pulls/htunnthuthu/offsec-ai" alt="Docker Pulls"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"/></a>
+</p>
 
-A comprehensive Python tool for checking firewall ports, detecting L7 protection services (WAF, CDN, etc.), testing mTLS authentication, and scanning for OWASP Top 10 2021/2025 vulnerabilities. Available as both a Python package and Docker container.
+**Offensive-security toolkit for authorized red-team engagements.**
+
+`offsec-ai` is a Python library and CLI that combines classic network reconnaissance with modern AI/LLM security testing. It probes live AI/LLM endpoints for the [OWASP LLM Top 10](https://owasp.org/www-project-top-10-for-large-language-model-applications/), scans and actively attacks [Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers for known CVEs, and performs full-stack infrastructure security assessments.
+
+> **Legal Notice**: Active attack features (`mcp-attack`, deep mode) require the `--i-have-authorization` flag. Only use against systems you own or have explicit written permission to test.
+
+---
 
 ## Features
 
-- ✅ **Port Scanning**: Check well-known firewall ports and services
-- 🛡️ **L7 Protection Detection**: Identify WAF/CDN services (F5, AWS WAF, Azure, Cloudflare, Microsoft HTTPAPI, etc.)
-- 🔐 **mTLS Authentication**: Check mutual TLS support and certificate requirements
-- 🔒 **SSL/TLS Certificate Analysis**: Comprehensive certificate chain analysis and validation
-- 🏛️ **Certificate Authority Identification**: "Who signed my cert?" functionality with trust chain visualization
-- ⚠️ **Missing Intermediate Detection**: Identify incomplete certificate chains affecting browser compatibility
-- 🔑 **Hybrid Identity Detection**: Check for Azure AD/ADFS integration and federation endpoints
-- 🔍 **OWASP Top 10 2021/2025 Scanner**: Automated vulnerability detection with remediation guidance (NEW!)
-- 🛡️ **Security Header Analysis**: Grade HTTP security headers (HSTS, CSP, X-Frame-Options, etc.) (NEW!)
-- 📄 **Multi-Format Reporting**: Export scan results to PDF, JSON, or CSV with tech-specific remediation (NEW!)
-- 🌐 **DNS Trace**: Advanced DNS CNAME chain analysis and IP protection detection
-- 🚀 **Async Support**: High-performance concurrent scanning
-- 📊 **Rich Output**: Beautiful terminal output with progress bars and certificate analysis tables
-- 🔧 **Unified CLI**: All functionality accessible through a single command interface
-- 📦 **Pip Installable**: Available on PyPI
-- 🐳 **Docker Ready**: Pre-built Docker images on Docker Hub
-- 🐍 **Type Hints**: Full type hint support for better IDE integration
-- 🏗️ **Production Ready**: Follows Python packaging best practices
+### New in v2.0.0 — AI / LLM Security
+
+| Feature | Description |
+|---------|-------------|
+| 🤖 **AI OWASP Top 10 Scanner** | Black-box probing of live LLM/chat API endpoints for all 10 OWASP LLM categories |
+| 🔬 **Rule-based + LLM Judge** | Pattern-based detection + optional LLM judge (OpenAI/Anthropic) via `[ai]` extra |
+| 🔌 **MCP Security Scanner** | Enumerate tools/resources/prompts, detect CVEs, check auth posture (HTTP, SSE, stdio) |
+| ⚔️ **MCP Attacker** | Authorized active testing: auth bypass, path traversal, tool injection, command injection |
+| 🛡️ **Authorization Gating** | `MCPAttacker(authorized=False)` raises `AuthorizationRequired`; `--i-have-authorization` flag required at CLI |
+
+### Infrastructure Security
+
+| Feature | Description |
+|---------|-------------|
+| 🔍 **Port Scanning** | Async concurrent scanning of well-known and custom ports |
+| 🌐 **L7 Protection Detection** | Identify WAF/CDN services (Cloudflare, AWS WAF, Azure, F5, Akamai, etc.) |
+| 🔐 **mTLS Checker** | Test mutual TLS support, client certificate requirements, handshake validation |
+| 🔒 **Certificate Analysis** | Full chain analysis, trust path, issuer identification, expiry, missing intermediates |
+| 🏛️ **Hybrid Identity Detection** | Azure AD / ADFS federation endpoint discovery (same method as Azure Portal) |
+| 🕵️ **OWASP Top 10 Web Scanner** | Web OWASP Top 10 2021 & 2025 with safe/deep modes, PDF/JSON/CSV reports |
+| 🛡️ **Security Headers** | Grade HTTP headers (HSTS, CSP, X-Frame-Options, Referrer-Policy, etc.) |
+| 📄 **Multi-format Reporting** | Export to PDF, JSON, CSV with tech-specific remediation (Nginx, Apache, IIS, Cloudflare) |
+
+---
 
 ## Installation
 
-### From PyPI (recommended)
 ```bash
-pip install simple-port-checker
+# Core toolkit
+pip install offsec-ai
+
+# With optional LLM judge (OpenAI / Anthropic)
+pip install "offsec-ai[ai]"
 ```
-
-### From Docker Hub
-
-Docker images are available on [Docker Hub](https://hub.docker.com/r/htunnthuthu/simple-port-checker) with automated builds from this repository.
-
-```bash
-# Quick start - run directly without installation
-docker run --rm htunnthuthu/simple-port-checker:latest google.com 443
-
-# Use specific version
-docker run --rm htunnthuthu/simple-port-checker:v0.5.3 example.com --ports 80,443
-
-# Run L7 protection check
-docker run --rm htunnthuthu/simple-port-checker:latest l7-check example.com
-
-# Run SSL/TLS certificate analysis
-docker run --rm htunnthuthu/simple-port-checker:latest cert-check example.com
-
-# Run full scan with all features
-docker run --rm htunnthuthu/simple-port-checker:latest full-scan example.com
-
-# Use latest tag for most recent features
-docker pull htunnthuthu/simple-port-checker:latest
-
-# Available tags: latest, v0.5.1, v0.5.0, v0.4.2, v0.4.1, v0.4.0, v0.3.0, and other version tags
-```
-
-**Docker Image Features:**
-- ✅ **Lightweight**: Based on Alpine Linux for minimal size
-- 🔒 **Secure**: Non-root user, minimal dependencies
-- 🏷️ **Multi-arch**: Supports AMD64 and ARM64 architectures  
-- 🔄 **Auto-updated**: Images built automatically from main branch
-- 📋 **Comprehensive**: All CLI features available in container
 
 ### From Source
-```bash
-git clone https://github.com/htunnthuthu/simple-port-checker.git
-cd simple-port-checker
-pip install -e .
-```
-
-## Quick Start
-
-### Command Line Usage
 
 ```bash
-# Basic port scan
-port-checker scan example.com
-
-# Scan specific ports
-port-checker scan example.com --ports 80,443,8080
-
-# Check L7 protection
-port-checker l7-check example.com
-
-# SSL/TLS Certificate Analysis (NEW!)
-port-checker cert-check example.com
-port-checker cert-chain github.com  
-port-checker cert-info google.com
-
-# DNS trace analysis
-port-checker dns-trace example.com
-
-# L7 check with DNS tracing
-port-checker l7-check example.com --trace-dns
-
-# Full scan with L7 detection
-port-checker full-scan example.com
-
-# OWASP Top 10 2021 Security Scan (NEW!)
-port-checker owasp-scan example.com
-
-# Deep scan with active probing and PDF report
-port-checker owasp-scan example.com --deep -f pdf -o security-report.pdf
-
-# Scan specific OWASP categories with tech-specific remediation
-port-checker owasp-scan example.com -c A02,A05,A06 -t nginx --verbose
-
-# Check for hybrid identity and ADFS (NEW!)
-port-checker hybrid-identity example.com
-
-# Scan multiple targets
-port-checker scan example.com google.com --output results.json
-
-# Run as Python module
-python -m simple_port_checker scan example.com
-
-# Check mTLS support
-port-checker mtls-check example.com
-
-# Check mTLS with client certificates
-port-checker mtls-check example.com --client-cert client.crt --client-key client.key
-
-# Generate test certificates for mTLS testing
-port-checker mtls-gen-cert test-client.example.com
-
-# Validate certificate files
-port-checker mtls-validate-cert client.crt client.key
-
-# Check multiple targets for mTLS support
-port-checker mtls-check example.com test.example.com --concurrent 5
-```
-
-### Docker Usage
-
-```bash
-# Basic port scan
-docker run --rm htunnthuthu/simple-port-checker:latest scan example.com
-
-# Scan with specific ports
-docker run --rm htunnthuthu/simple-port-checker:latest scan example.com --ports 80,443,8080
-
-# L7 protection detection
-docker run --rm htunnthuthu/simple-port-checker:latest l7-check example.com --trace-dns
-
-# SSL/TLS Certificate Analysis
-docker run --rm htunnthuthu/simple-port-checker:latest cert-check github.com
-docker run --rm htunnthuthu/simple-port-checker:latest cert-chain google.com
-docker run --rm htunnthuthu/simple-port-checker:latest cert-info example.com
-
-# Full comprehensive scan
-docker run --rm htunnthuthu/simple-port-checker:latest full-scan example.com
-
-# mTLS testing
-docker run --rm htunnthuthu/simple-port-checker:latest mtls-check example.com
-
-# Save results to host (mount volume)
-docker run --rm -v $(pwd):/app/output htunnthuthu/simple-port-checker:latest scan example.com --output /app/output/results.json
-
-# Use specific version
-docker run --rm htunnthuthu/simple-port-checker:v0.5.1 scan example.com
-```
-
-### Python API Usage
-
-```python
-import asyncio
-from simple_port_checker import PortChecker, L7Detector, CertificateAnalyzer
-
-# Initialize scanner
-scanner = PortChecker()
-
-async def main():
-    # Scan ports
-    results = await scanner.scan_host("blog.htunnthuthu.tech", ports=[80, 443, 8080])
-    print(f"Open ports: {len([p for p in results.ports if p.is_open])}")
-
-    # Detect L7 protection
-    detector = L7Detector()
-    protection = await detector.detect("blog.htunnthuthu.tech")
-    if protection.primary_protection:
-        service = protection.primary_protection.service.value
-        confidence = protection.primary_protection.confidence
-        print(f"L7 Protection: {service} ({confidence:.0%})")
-    else:
-        print("No L7 protection detected")
-    
-    # Analyze SSL/TLS certificate
-    cert_analyzer = CertificateAnalyzer()
-    cert_chain = await cert_analyzer.analyze_certificate_chain("blog.htunnthuthu.tech", 443)
-    print(f"Certificate Subject: {cert_chain.server_cert.subject}")
-    print(f"Issuer: {cert_chain.server_cert.issuer}")
-    print(f"Valid: {cert_chain.server_cert.is_valid_now}")
-    print(f"Chain Complete: {cert_chain.chain_complete}")
-
-# Run the async function
-asyncio.run(main())
-```
-
-### mTLS Authentication Checking
-
-```python
-import asyncio
-from simple_port_checker import MTLSChecker
-
-async def check_mtls():
-    checker = MTLSChecker()
-    
-    # Basic mTLS support check
-    result = await checker.check_mtls("example.com")
-    print(f"Supports mTLS: {result.supports_mtls}")
-    print(f"Requires client cert: {result.requires_client_cert}")
-    
-    # Check with client certificates
-    result = await checker.check_mtls(
-        "example.com", 
-        client_cert_path="client.crt",
-        client_key_path="client.key"
-    )
-    print(f"Handshake successful: {result.handshake_successful}")
-    
-    # Batch check multiple targets
-    targets = [("example.com", 443), ("test.com", 8443)]
-    results = await checker.batch_check_mtls(targets)
-    
-    for result in results:
-        print(f"{result.target}: mTLS={result.supports_mtls}")
-
-asyncio.run(check_mtls())
-```
-
-# Hybrid Identity Detection
-
-## Overview
-
-The Hybrid Identity feature detects Azure AD/ADFS integration and federation endpoints for domains. It uses the same method as Azure Portal to discover ADFS endpoints by querying the Azure AD realm API, making it highly reliable for identifying hybrid identity configurations.
-
-This is essential for:
-
-- **🔍 Security Audits**: Identify federation services and authentication mechanisms
-- **📋 Migration Planning**: Assess current identity setup before cloud migrations
-- **🛠️ Troubleshooting**: Verify ADFS accessibility and configuration
-- **🎯 Identity Discovery**: Discover authentication mechanisms for domains
-- **☁️ Cloud Integration**: Understand Azure AD and on-premises integration
-
-## What It Checks
-
-| Check | Description |
-|-------|-------------|
-| 🎯 **Azure AD Flow** | Queries Azure AD realm API (most reliable method - same as Azure Portal) |
-| 🔒 **ADFS Endpoints** | Checks `/adfs/ls` and related paths |
-| 📜 **Federation Metadata** | WS-Federation metadata endpoints |
-| ☁️ **Azure AD Integration** | Redirects to Microsoft login |
-| 🔑 **OpenID Config** | `.well-known/openid-configuration` |
-| 🌐 **DNS Records** | Microsoft verification, MX records, ADFS subdomains |
-
-## Command Line Usage
-
-### Basic Hybrid Identity Checking
-
-```bash
-# Check single domain for hybrid identity
-port-checker hybrid-identity example.com
-
-# Check multiple domains
-port-checker hybrid-identity company1.com company2.com company3.com
-
-# From file
-port-checker hybrid-identity $(cat domains.txt)
-
-# With verbose output for detailed analysis
-port-checker hybrid-identity example.com --verbose
-
-# Save results to JSON
-port-checker hybrid-identity example.com --output hybrid-results.json
-```
-
-### Advanced Options
-
-```bash
-# Custom timeout (useful for slow networks)
-port-checker hybrid-identity example.com --timeout 15
-
-# Control concurrency for batch checks
-port-checker hybrid-identity domain1.com domain2.com --concurrent 5
-
-# Comprehensive check with all options
-port-checker hybrid-identity example.com \
-  --verbose \
-  --timeout 15 \
-  --output results.json
-```
-
-### Docker Usage
-
-```bash
-# Basic hybrid identity check
-docker run --rm htunnthuthu/simple-port-checker:latest hybrid-identity example.com
-
-# Multiple domains with output
-docker run --rm -v $(pwd):/app/output \
-  htunnthuthu/simple-port-checker:latest \
-  hybrid-identity company1.com company2.com \
-  --output /app/output/hybrid-results.json \
-  --verbose
-```
-
-## Python API Usage
-
-```python
-import asyncio
-from simple_port_checker import HybridIdentityChecker
-
-async def check_hybrid_identity():
-    """Basic hybrid identity check."""
-    checker = HybridIdentityChecker(timeout=15.0)
-    
-    # Check single domain
-    result = await checker.check("example.com")
-    
-    print(f"Domain: {result.fqdn}")
-    print(f"Hybrid Identity: {'✅ Detected' if result.has_hybrid_identity else '❌ Not Found'}")
-    
-    if result.has_adfs:
-        print(f"\nADFS Configuration:")
-        print(f"  Endpoint: {result.adfs_endpoint}")
-        print(f"  Status: {result.adfs_status_code}")
-    
-    if result.federation_metadata_found:
-        print("  Federation Metadata: ✅ Found")
-    
-    if result.azure_ad_detected:
-        print("  Azure AD Integration: ✅ Detected")
-    
-    if result.openid_config_found:
-        print("  OpenID Configuration: ✅ Found")
-    
-    # DNS indicators
-    if result.dns_records:
-        print(f"\nDNS Records:")
-        if 'microsoft_verification' in result.dns_records:
-            print("  Microsoft Verification: ✅ Found")
-        if 'microsoft_mail' in result.dns_records:
-            print("  Microsoft 365 Mail: ✅ Detected")
-        if 'adfs_subdomains' in result.dns_records:
-            print(f"  ADFS Subdomains: {', '.join(result.dns_records['adfs_subdomains'])}")
-    
-    print(f"\nResponse Time: {result.response_time:.2f}s")
-    
-    # Error handling
-    if result.error:
-        print(f"Error: {result.error}")
-
-async def batch_hybrid_identity_check():
-    """Check multiple domains for hybrid identity."""
-    checker = HybridIdentityChecker()
-    
-    domains = [
-        "company1.com",
-        "company2.com",
-        "company3.com",
-    ]
-    
-    print("Checking hybrid identity for multiple domains...\n")
-    results = await checker.batch_check(domains, max_concurrent=5)
-    
-    # Summary statistics
-    hybrid_count = sum(1 for r in results if r.has_hybrid_identity)
-    adfs_count = sum(1 for r in results if r.has_adfs)
-    
-    print(f"\nSummary:")
-    print(f"  Total Domains: {len(results)}")
-    print(f"  Hybrid Identity Found: {hybrid_count}")
-    print(f"  ADFS Endpoints Found: {adfs_count}")
-    
-    # Detailed results
-    print(f"\nDetailed Results:")
-    for result in results:
-        status = "✅" if result.has_hybrid_identity else "❌"
-        adfs = f" (ADFS: {result.adfs_endpoint})" if result.adfs_endpoint else ""
-        print(f"  {status} {result.fqdn}{adfs}")
-
-async def production_hybrid_identity_check():
-    """Production-ready hybrid identity checking with error handling."""
-    checker = HybridIdentityChecker(timeout=10.0)
-    
-    domains = ["example.com", "test.com", "company.com"]
-    
-    results = []
-    for domain in domains:
-        try:
-            result = await checker.check(domain)
-            results.append(result)
-            
-            if result.error:
-                print(f"❌ {domain}: {result.error}")
-                continue
-            
-            if result.has_hybrid_identity:
-                print(f"✅ {domain}: Hybrid Identity Detected")
-                if result.adfs_endpoint:
-                    print(f"   ADFS: {result.adfs_endpoint}")
-            else:
-                print(f"ℹ️  {domain}: Cloud-only (no hybrid identity)")
-                
-        except Exception as e:
-            print(f"❌ {domain}: Exception - {e}")
-    
-    return results
-
-# Run examples
-asyncio.run(check_hybrid_identity())
-asyncio.run(batch_hybrid_identity_check())
-asyncio.run(production_hybrid_identity_check())
-```
-
-## Key Innovation
-
-**Uses the same method as Azure Portal to discover ADFS endpoints!**
-
-When you login to Azure Portal with `user@domain.com`:
-1. Portal checks: `login.microsoftonline.com/common/userrealm/user@domain.com`
-2. Gets ADFS endpoint from Azure AD configuration
-3. Redirects to that ADFS endpoint
-
-This tool does the **exact same thing** ✨, making it the most reliable method for ADFS discovery.
-
-## Common Results
-
-### Hybrid Identity Found
-```
-Status: ✅ Hybrid Identity Detected
-ADFS Endpoint: ✅ Found
-  Endpoint URL: https://adfs.company.com/adfs/ls
-  Status Code: 200
-Azure AD Integration: ✅ Detected
-Federation Metadata: ✅ Found
-```
-
-### Cloud-Only (No Hybrid)
-```
-Status: ⚠️  No Hybrid Identity Found
-ADFS Endpoint: ❌ Not Found
-Federation Metadata: ❌ Not Found
-Azure AD Integration: ❌ Not Detected
-```
-
-## Use Cases
-
-1. **Security Audits**: Identify all domains with federation services
-2. **Migration Planning**: Assess current identity infrastructure before migrations
-3. **Troubleshooting**: Verify ADFS endpoints are accessible
-4. **Compliance**: Ensure identity configurations meet requirements
-5. **Discovery**: Map out authentication mechanisms across multiple domains
-
-## Related Documentation
-
-- Quick Reference: `HYBRID_IDENTITY_QUICKREF.md`
-- Implementation Details: `IMPLEMENTATION_HYBRID_IDENTITY.md`
-- Full API Docs: `docs/hybrid-identity.md`
-- API Reference: `docs/api.md`
-
----
-
-# OWASP Top 10 2021/2025 Vulnerability Scanner
-
-## Overview
-
-The OWASP Top 10 2021/2025 vulnerability scanner provides comprehensive security assessment for web applications and APIs. It detects common security vulnerabilities, provides severity-based risk scoring, and offers technology-specific remediation guidance.
-
-This is essential for:
-
-- **🔍 Security Assessments**: Automated detection of OWASP Top 10 2021 & 2025 vulnerabilities
-- **📊 Risk Scoring**: Severity-based grading system (A-F) with automatic critical failure detection
-- **🛡️ Security Headers**: Analysis of HTTP security headers (HSTS, CSP, X-Frame-Options, etc.)
-- **🔧 Remediation**: Tech-specific fix guidance for Apache, Nginx, IIS, Cloudflare
-- **📄 Reporting**: Professional PDF reports, JSON/CSV export for integration
-- **🎯 Compliance**: OWASP compliance verification with CWE mapping
-- **⚡ Safe Mode**: Passive-only scanning (default) that won't trigger security alerts
-- **🚀 Deep Mode**: Active probing for comprehensive vulnerability detection
-
-## What It Scans
-
-### OWASP Top 10 2021 Categories
-
-| Category | Name | Safe Mode | Deep Mode | Detection Method |
-|----------|------|-----------|-----------|------------------|
-| **A01** | Broken Access Control | ❌ | ✅ | Authorization testing |
-| **A02** | Cryptographic Failures | ✅ | ✅ | SSL/TLS analysis, HSTS, cookie flags |
-| **A03** | Injection | ❌ | ✅ | Payload testing |
-| **A04** | Insecure Design | ❌ | ✅ | Architecture analysis |
-| **A05** | Security Misconfiguration | ✅ | ✅ | Header analysis, server disclosure |
-| **A06** | Vulnerable Components | ✅ | ✅ | Version detection |
-| **A07** | Authentication Failures | ✅ | ✅ | Session management, cookie security |
-| **A08** | Software/Data Integrity | ❌ | ✅ | Integrity checks |
-| **A09** | Logging/Monitoring | 🚫 | 🚫 | Not externally testable |
-| **A10** | Server-Side Request Forgery | ❌ | ✅ | SSRF testing |
-
-### OWASP Top 10 2025 Categories (NEW!)
-
-| Category | Name | Safe Mode | Deep Mode | Detection Method |
-|----------|------|-----------|-----------|------------------|
-| **A03_2025** | Software Supply Chain Failures | ✅ | ✅ | Security.txt, SBOM detection |
-| **A10_2025** | Mishandling of Exceptional Conditions | ✅ | ✅ | Server disclosure, verbose errors, stack traces |
-
-### Scan Modes
-
-**🛡️ Safe Mode (Default)**
-- Passive-only checks that won't trigger security alerts
-- Scans: A02, A05, A06, A07
-- Perfect for production environments
-- No active probing or payload injection
-
-**🚀 Deep Mode**
-- Active vulnerability probing
-- Scans: All testable categories (excludes A09)
-- Requires explicit authorization
-- May trigger security monitoring systems
-
-### Severity Scoring
-
-| Severity | Points | Impact | Auto-Grade |
-|----------|--------|--------|------------|
-| **CRITICAL** | 15 | Immediate exploitation risk | Auto F-grade for A02 |
-| **HIGH** | 10 | Significant security impact | - |
-| **MEDIUM** | 5 | Moderate risk | - |
-| **LOW** | 1 | Minor issue | - |
-
-**Grading Scale**: A (0-10), B (11-25), C (26-50), D (51-100), F (>100 or critical crypto failures)
-
-## OWASP Scan Workflow
-
-```mermaid
-sequenceDiagram
-    participant CLI as CLI/API
-    participant Scanner as OwaspScanner
-    participant Headers as SecurityHeaderChecker
-    participant Cert as CertificateAnalyzer
-    participant Remediation as RemediationDB
-    participant Export as Exporters
-    
-    CLI->>Scanner: owasp-scan target
-    activate Scanner
-    
-    Note over Scanner: Initialize scan mode<br/>(safe/deep)
-    
-    Scanner->>Headers: Check security headers
-    activate Headers
-    Headers-->>Scanner: Header analysis results
-    deactivate Headers
-    
-    Scanner->>Cert: Analyze SSL/TLS
-    activate Cert
-    Cert-->>Scanner: Certificate chain & grade
-    deactivate Cert
-    
-    Note over Scanner: Run category checks<br/>(A02, A05, A06, A07)
-    
-    Scanner->>Scanner: Calculate severity scores
-    Scanner->>Scanner: Assign grade (A-F)
-    
-    Scanner->>Remediation: Get tech-specific fixes
-    activate Remediation
-    Remediation-->>Scanner: Remediation guidance
-    deactivate Remediation
-    
-    Scanner-->>CLI: OwaspScanResult
-    deactivate Scanner
-    
-    CLI->>Export: Format output
-    activate Export
-    Export-->>CLI: PDF/JSON/CSV report
-    deactivate Export
-```
-
-## Command Line Usage
-
-### Basic OWASP Scanning
-
-```bash
-# Safe mode scan (default - passive only)
-simple-port-checker owasp-scan example.com
-
-# Deep scan with active probing (requires authorization)
-simple-port-checker owasp-scan example.com --deep
-
-# Scan with verbose output showing all findings
-simple-port-checker owasp-scan example.com --verbose
-
-# Quiet mode - grade summary only
-simple-port-checker owasp-scan example.com --quiet
-```
-
-### Category-Specific Scanning
-
-```bash
-# Scan specific OWASP categories (2021 and 2025 mixed)
-simple-port-checker owasp-scan example.com -c A02,A05,A06,A03_2025,A10_2025
-
-# Scan only cryptographic failures
-simple-port-checker owasp-scan example.com -c A02 --verbose
-
-# Scan OWASP 2025 categories only
-simple-port-checker owasp-scan example.com -c A03_2025,A10_2025 --verbose
-
-# Custom category set mixing 2021 and 2025
-simple-port-checker owasp-scan example.com -c A02,A05,A07,A03_2025,A10_2025 --deep
-```
-
-### Technology-Specific Remediation
-
-```bash
-# Get Nginx-specific remediation guidance
-simple-port-checker owasp-scan example.com -t nginx --verbose
-
-# Apache server remediation
-simple-port-checker owasp-scan example.com -t apache -f pdf -o report.pdf
-
-# IIS server remediation
-simple-port-checker owasp-scan example.com -t iis --verbose
-
-# Cloudflare CDN remediation
-simple-port-checker owasp-scan example.com -t cloudflare
-
-# Generic remediation (default)
-simple-port-checker owasp-scan example.com -t generic
-```
-
-### Multi-Format Reporting
-
-```bash
-# Console output (default)
-simple-port-checker owasp-scan example.com
-
-# Professional PDF report with remediation
-simple-port-checker owasp-scan example.com -f pdf -o security-report.pdf
-
-# JSON export for automation/integration
-simple-port-checker owasp-scan example.com -f json -o results.json
-
-# CSV for spreadsheet analysis
-simple-port-checker owasp-scan example.com -f csv -o findings.csv
-
-# JSON with remediation guidance
-simple-port-checker owasp-scan example.com -f json -o results.json -t nginx
-```
-
-### Severity Filtering
-
-```bash
-# Show only critical findings
-simple-port-checker owasp-scan example.com --severity CRITICAL
-
-# High and above
-simple-port-checker owasp-scan example.com --severity HIGH --verbose
-
-# Medium and above
-simple-port-checker owasp-scan example.com --severity MEDIUM
-
-# All findings (default)
-simple-port-checker owasp-scan example.com --verbose
-```
-
-### Batch Scanning
-
-```bash
-# Scan multiple targets
-simple-port-checker owasp-scan site1.com site2.com site3.com
-
-# With deep mode and PDF reports
-simple-port-checker owasp-scan api.example.com admin.example.com \
-  --deep -f pdf -o batch-report.pdf
-
-# From file
-simple-port-checker owasp-scan $(cat targets.txt) --verbose
-```
-
-### Advanced Options
-
-```bash
-# Custom timeout for slow networks
-simple-port-checker owasp-scan example.com --timeout 20
-
-# Complete assessment with all options
-simple-port-checker owasp-scan example.com \
-  --deep \
-  -t nginx \
-  -f pdf \
-  -o comprehensive-report.pdf \
-  --verbose \
-  --timeout 15
-```
-
-### Docker Usage
-
-```bash
-# Basic OWASP scan
-docker run --rm htunnthuthu/simple-port-checker:latest \
-  owasp-scan example.com
-
-# Deep scan with PDF report (save to host)
-docker run --rm -v $(pwd):/app/output \
-  htunnthuthu/simple-port-checker:latest \
-  owasp-scan example.com \
-  --deep -f pdf -o /app/output/security-report.pdf
-
-# Multiple targets with tech-specific remediation
-docker run --rm htunnthuthu/simple-port-checker:latest \
-  owasp-scan api.example.com admin.example.com \
-  -t nginx --verbose
-```
-
-## Python API Usage
-
-### Basic OWASP Scanning
-
-```python
-import asyncio
-from simple_port_checker import OwaspScanner
-
-async def basic_owasp_scan():
-    """Perform basic OWASP Top 10 2021/2025 scan."""
-    scanner = OwaspScanner(mode="safe", timeout=15.0)
-    
-    # Scan target
-    result = await scanner.scan("example.com", port=443, tech_stack="nginx")
-    
-    # Display results
-    print(f"Target: {result.target}:{result.port}")
-    print(f"Overall Grade: {result.overall_grade}")
-    print(f"Total Score: {result.total_score}")
-    print(f"Scan Mode: {result.scan_mode.value}")
-    print(f"Duration: {result.duration:.2f}s")
-    
-    # Show findings by severity
-    if result.critical_findings:
-        print(f"\n⚠️  CRITICAL ({len(result.critical_findings)} findings):")
-        for finding in result.critical_findings:
-            print(f"  [{finding.category}] {finding.title}")
-            print(f"  {finding.description}")
-    
-    if result.high_findings:
-        print(f"\n🔴 HIGH ({len(result.high_findings)} findings):")
-        for finding in result.high_findings:
-            print(f"  [{finding.category}] {finding.title}")
-    
-    # Category analysis
-    for cat_id in ["A02", "A05", "A06", "A07"]:
-        cat_result = result.categories.get(cat_id)
-        if cat_result and cat_result.scanned:
-            print(f"\n{cat_id}: {cat_result.category_name}")
-            print(f"  Grade: {cat_result.grade}")
-            print(f"  Score: {cat_result.score}")
-            print(f"  Findings: {len(cat_result.findings)}")
-
-asyncio.run(basic_owasp_scan())
-```
-
-### Deep Scan with Reporting
-
-```python
-import asyncio
-from simple_port_checker import OwaspScanner
-from simple_port_checker.utils import OwaspPdfExporter, export_to_json, export_to_csv
-
-async def comprehensive_owasp_assessment():
-    """Complete OWASP assessment with multi-format reporting."""
-    # Deep mode scanner
-    scanner = OwaspScanner(mode="deep", timeout=15.0)
-    
-    # Scan target
-    result = await scanner.scan(
-        "example.com",
-        port=443,
-        tech_stack="nginx"
-    )
-    
-    print(f"Security Assessment: {result.target}")
-    print(f"Grade: {result.overall_grade} ({result.total_score} points)")
-    print(f"Total Findings: {len(result.all_findings)}")
-    
-    # Export to multiple formats
-    
-    # PDF report with remediation
-    pdf_exporter = OwaspPdfExporter()
-    pdf_exporter.export(
-        result,
-        "security-report.pdf",
-        tech_stack="nginx",
-        include_remediation=True
-    )
-    print("✓ PDF: security-report.pdf")
-    
-    # JSON for automation
-    export_to_json(
-        result,
-        "results.json",
-        tech_stack="nginx",
-        include_remediation=True
-    )
-    print("✓ JSON: results.json")
-    
-    # CSV for spreadsheet
-    export_to_csv(result, "findings.csv")
-    print("✓ CSV: findings.csv")
-
-asyncio.run(comprehensive_owasp_assessment())
-```
-
-### Batch Scanning
-
-```python
-import asyncio
-from simple_port_checker import OwaspScanner
-
-async def batch_owasp_scan():
-    """Scan multiple targets for OWASP vulnerabilities."""
-    scanner = OwaspScanner(mode="safe")
-    
-    targets = [
-        ("example.com", 443),
-        ("api.example.com", 443),
-        ("admin.example.com", 443)
-    ]
-    
-    # Batch scan with concurrency control
-    batch_result = await scanner.batch_scan(
-        targets,
-        tech_stack="nginx",
-        max_concurrent=3
-    )
-    
-    print(f"Scanned: {batch_result.total_scanned} targets")
-    print(f"Failed: {batch_result.failed_count}")
-    
-    # Summary by grade
-    grade_counts = {}
-    for result in batch_result.results:
-        grade = result.overall_grade
-        grade_counts[grade] = grade_counts.get(grade, 0) + 1
-    
-    print("\nGrade Distribution:")
-    for grade in sorted(grade_counts.keys()):
-        print(f"  {grade}: {grade_counts[grade]} targets")
-    
-    # Detailed results
-    for result in batch_result.results:
-        critical_count = len(result.critical_findings)
-        high_count = len(result.high_findings)
-        
-        status = "⚠️" if critical_count > 0 else "✅" if result.overall_grade in ["A", "B"] else "🔸"
-        print(f"\n{status} {result.target}: Grade {result.overall_grade}")
-        if critical_count > 0:
-            print(f"   CRITICAL: {critical_count} findings")
-        if high_count > 0:
-            print(f"   HIGH: {high_count} findings")
-
-asyncio.run(batch_owasp_scan())
-```
-
-### Category-Specific Scanning
-
-```python
-import asyncio
-from simple_port_checker import OwaspScanner
-
-async def category_specific_scan():
-    """Scan specific OWASP categories (2021 and 2025)."""
-    # Custom categories - mix 2021 and 2025
-    scanner = OwaspScanner(
-        enabled_categories=["A02", "A05", "A06", "A03_2025", "A10_2025"],
-        timeout=15.0
-    )
-    
-    result = await scanner.scan("example.com", tech_stack="apache")
-    
-    print(f"Scanned Categories: {', '.join(result.categories.keys())}")
-    
-    for cat_id, cat_result in result.categories.items():
-        if cat_result.scanned:
-            print(f"\n{cat_id}: {cat_result.category_name}")
-            print(f"  Grade: {cat_result.grade}")
-            print(f"  Findings: {len(cat_result.findings)}")
-            
-            for finding in cat_result.findings:
-                print(f"    - [{finding.severity.value}] {finding.title}")
-
-asyncio.run(category_specific_scan())
-```
-
-### Accessing Remediation
-
-```python
-import asyncio
-from simple_port_checker import OwaspScanner
-from simple_port_checker.utils import get_remediation
-
-async def scan_with_remediation():
-    """Scan and access remediation guidance."""
-    scanner = OwaspScanner(mode="safe")
-    result = await scanner.scan("example.com", tech_stack="nginx")
-    
-    # Get remediation for each finding
-    for finding in result.all_findings:
-        print(f"\n[{finding.severity.value}] {finding.category}: {finding.title}")
-        print(f"Evidence: {finding.evidence}")
-        
-        # Get tech-specific remediation
-        remediation = get_remediation(finding.category, tech_stack="nginx")
-        
-        if remediation:
-            print(f"\nRemediation:")
-            print(f"  Description: {remediation.description}")
-            
-            print(f"\n  Steps:")
-            for i, step in enumerate(remediation.steps, 1):
-                print(f"    {i}. {step}")
-            
-            # Tech-specific code example
-            if "nginx" in remediation.code_examples:
-                print(f"\n  Nginx Configuration:")
-                print(f"    {remediation.code_examples['nginx']}")
-            
-            print(f"\n  References:")
-            for ref in remediation.references:
-                print(f"    - {ref}")
-
-asyncio.run(scan_with_remediation())
-```
-
-## Output Examples
-
-### Console Output (Verbose)
-
-```
-╭───────────────────── Security Scan Report ──────────────────────╮
-│ OWASP Top 10 2021/2025 Security Assessment                      │
-│ Target: https://example.com                                     │
-│ Scan Mode: SAFE                                                 │
-│ Duration: 2.35s                                                 │
-╰─────────────────────────────────────────────────────────────────╯
-
-Overall Security Grade: D
-Total Score: 46
-Total Findings: 9
-
-A02: Cryptographic Failures (2021)
-Grade: B
-   [HIGH] Missing HSTS Header
-   Evidence: Strict-Transport-Security header not found
-
-A05: Security Misconfiguration (2021)
-Grade: D
-   [HIGH] Missing Content-Security-Policy Header
-   Evidence: Content-Security-Policy header not found
-
-A03_2025: Software Supply Chain Failures (2025)
-Grade: C
-   [MEDIUM] Missing Security.txt
-   Evidence: No /.well-known/security.txt found
-   [MEDIUM] Missing SBOM
-   Evidence: No Software Bill of Materials detected
-   
-   [MEDIUM] Missing X-Frame-Options Header
-   Evidence: X-Frame-Options header not found
-   
-   [LOW] Information Disclosure via Server Header
-   Evidence: Server: cloudflare
-```
-
-### PDF Report Contents
-
-- **Cover Page**: Overall grade, scan metadata
-- **Executive Summary**: Findings breakdown by severity
-- **Category Analysis**: Detailed results per OWASP category
-- **Findings**: Title, description, evidence, severity, CWE IDs
-- **Remediation**: Tech-specific code examples and steps
-- **References**: OWASP documentation links
-
-## Use Cases
-
-1. **Security Assessments**: Automated OWASP Top 10 2021/2025 compliance checking
-2. **DevSecOps Integration**: CI/CD pipeline security gates with both 2021 and 2025 standards
-3. **Compliance Reporting**: Generate professional security reports with latest OWASP guidelines
-4. **Supply Chain Security**: Validate software supply chain practices (OWASP 2025 A03_2025)
-5. **Error Handling Analysis**: Detect information disclosure in exception handling (OWASP 2025 A10_2025)
-6. **Penetration Testing**: Initial reconnaissance and vulnerability discovery
-7. **Bug Bounty**: Automated finding discovery and documentation
-8. **Security Training**: Learn OWASP 2021 & 2025 vulnerabilities hands-on
-
-## Related Documentation
-
-- Comprehensive Guide: `docs/owasp-scanner.md`
-- API Examples: `examples/owasp_scan_examples.py`
-- API Reference: `docs/api.md` (OWASP section)
-- Remediation Database: `src/simple_port_checker/utils/owasp_remediation.py`
-
----
-
-# mTLS Authentication Checking
-
-## Overview
-
-The mTLS (Mutual TLS) feature provides comprehensive testing and validation of mutual TLS authentication configurations. This is essential for:
-
-- **🔒 Zero Trust Security**: Verify mutual authentication in zero-trust architectures
-- **📋 Compliance Audits**: Ensure mTLS requirements are properly implemented
-- **🛡️ API Security**: Test client certificate authentication for APIs
-- **🔍 Security Assessments**: Identify services requiring mutual authentication
-- **📊 Certificate Management**: Analyze and validate certificate configurations
-
-## mTLS Command Line Usage
-
-### Basic mTLS Checking
-
-```bash
-# Check if a service supports mTLS
-port-checker mtls-check api.example.com
-
-# Check mTLS on custom port
-port-checker mtls-check api.example.com --port 8443
-
-# Check with verbose output for detailed information
-port-checker mtls-check api.example.com --verbose
-
-# Check multiple targets concurrently
-port-checker mtls-check api1.example.com api2.example.com --concurrent 10
-
-# Save results to JSON
-port-checker mtls-check api.example.com --output mtls-results.json
-```
-
-### Client Certificate Authentication
-
-```bash
-# Generate test certificates for mTLS testing
-port-checker mtls-gen-cert client.example.com
-# Creates: client.crt and client.key
-
-# Validate certificate and key files
-port-checker mtls-validate-cert client.crt client.key
-
-# Test mTLS with client certificates
-port-checker mtls-check api.example.com \
-  --client-cert client.crt \
-  --client-key client.key
-
-# Test with custom CA bundle
-port-checker mtls-check api.example.com \
-  --client-cert client.crt \
-  --client-key client.key \
-  --ca-bundle /path/to/ca-bundle.pem
-```
-
-### Advanced Options
-
-```bash
-# Disable SSL verification (for testing)
-port-checker mtls-check internal-api.company.com --no-verify
-
-# Custom timeout and concurrency
-port-checker mtls-check api.example.com \
-  --timeout 30 \
-  --concurrent 5
-
-# Batch check with different configurations
-port-checker mtls-check \
-  api1.example.com:443 \
-  api2.example.com:8443 \
-  internal.example.com:9443 \
-  --client-cert client.crt \
-  --client-key client.key \
-  --verbose \
-  --output comprehensive-mtls-audit.json
-```
-
-## mTLS Python API Usage
-
-```python
-import asyncio
-from simple_port_checker import MTLSChecker
-
-async def basic_mtls_check():
-    """Basic mTLS support checking."""
-    checker = MTLSChecker(timeout=10)
-    
-    # Check single target
-    result = await checker.check_mtls("api.example.com")
-    
-    print(f"Target: {result.target}:{result.port}")
-    print(f"Supports mTLS: {result.supports_mtls}")
-    print(f"Requires client cert: {result.requires_client_cert}")
-    print(f"Handshake successful: {result.handshake_successful}")
-    
-    if result.server_cert_info:
-        cert = result.server_cert_info
-        print(f"Server cert: {cert.subject}")
-        print(f"Valid until: {cert.not_valid_after}")
-
-async def mtls_with_client_certs():
-    """mTLS testing with client certificates."""
-    checker = MTLSChecker()
-    
-    # Test with client certificates
-    result = await checker.check_mtls(
-        "api.example.com",
-        client_cert_path="client.crt",
-        client_key_path="client.key"
-    )
-    
-    print(f"mTLS handshake: {'✓' if result.handshake_successful else '✗'}")
-    print(f"TLS version: {result.tls_version}")
-    print(f"Cipher suite: {result.cipher_suite}")
-
-async def batch_mtls_check():
-    """Batch mTLS checking with progress tracking."""
-    checker = MTLSChecker()
-    
-    targets = [
-        "api1.example.com",
-        "api2.example.com", 
-        ("internal-api.company.com", 8443)
-    ]
-    
-    def progress_callback(completed, total, result):
-        print(f"Progress: {completed}/{total} - {result.target}: {result.supports_mtls}")
-    
-    results = await checker.batch_check_mtls(
-        targets,
-        max_concurrent=5,
-        progress_callback=progress_callback
-    )
-    
-    # Analyze results
-    mtls_supported = sum(1 for r in results if r.supports_mtls)
-    print(f"mTLS supported: {mtls_supported}/{len(results)} targets")
-
-async def production_mtls_audit():
-    """Production-ready mTLS audit with comprehensive error handling."""
-    checker = MTLSChecker(
-        timeout=15,
-        max_retries=2,
-        retry_delay=1.0,
-        enable_logging=True
-    )
-    
-    targets = [
-        "api.example.com",
-        "secure-api.example.com",
-        "internal-api.company.com"
-    ]
-    
-    results = []
-    for target in targets:
-        try:
-            result = await checker.check_mtls(target)
-            results.append(result)
-            
-            # Log important findings
-            if result.requires_client_cert:
-                print(f"⚠️  {target} REQUIRES client certificates")
-            elif result.supports_mtls:
-                print(f"ℹ️  {target} supports mTLS (optional)")
-            else:
-                print(f"ℹ️  {target} no mTLS support")
-                
-        except Exception as e:
-            print(f"❌ Error checking {target}: {e}")
-    
-    # Get performance metrics
-    metrics = checker.get_metrics()
-    print(f"\nMetrics: {metrics['successful_connections']}/{metrics['total_requests']} successful")
-    print(f"Average time: {metrics['total_time']/metrics['total_requests']:.3f}s")
-
-# Run examples
-asyncio.run(basic_mtls_check())
-asyncio.run(mtls_with_client_certs())
-asyncio.run(batch_mtls_check())
-asyncio.run(production_mtls_audit())
-```
-
-## Architecture & Flow
-
-The following sequence diagram illustrates the end-to-end flow of Simple Port Checker:
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant CLI
-    participant PortChecker
-    participant L7Detector
-    participant Target as Target Host
-    participant DNS
-    participant HTTP as HTTP/HTTPS
-    
-    %% Port Scanning Flow
-    rect rgb(200, 255, 200)
-        Note over User, HTTP: Port Scanning Phase
-        User->>+CLI: port-checker scan target.com
-        CLI->>+PortChecker: scan_host(target.com, ports)
-        
-        PortChecker->>+DNS: Resolve hostname
-        DNS-->>-PortChecker: IP address
-        
-        par Port 80
-            PortChecker->>+Target: TCP Connect :80
-            Target-->>-PortChecker: Connection response
-        and Port 443  
-            PortChecker->>+Target: TCP Connect :443
-            Target-->>-PortChecker: Connection response
-        and Port 22
-            PortChecker->>+Target: TCP Connect :22
-            Target-->>-PortChecker: Connection response
-        end
-        
-        PortChecker->>+Target: Banner grabbing
-        Target-->>-PortChecker: Service banners
-        
-        PortChecker-->>-CLI: ScanResult
-        CLI-->>-User: Rich formatted output
-    end
-    
-    %% L7 Protection Detection Flow  
-    rect rgb(200, 200, 255)
-        Note over User, HTTP: L7 Protection Detection Phase
-        User->>+CLI: port-checker l7-check target.com
-        CLI->>+L7Detector: detect(target.com)
-        
-        L7Detector->>+HTTP: HTTPS Request
-        HTTP-->>-L7Detector: Response + Headers
-        
-        L7Detector->>L7Detector: Analyze Headers<br/>(CF-Ray, X-Amzn-RequestId, etc.)
-        L7Detector->>L7Detector: Check Response Body<br/>(WAF signatures)
-        
-        L7Detector->>+DNS: CNAME Lookup
-        DNS-->>-L7Detector: DNS Records
-        
-        L7Detector->>L7Detector: Match Signatures<br/>(Cloudflare, AWS WAF, etc.)
-        
-        alt WAF/CDN Detected
-            L7Detector-->>CLI: L7Result (Protected)
-            CLI-->>User: "✓ Protection: Cloudflare (95%)"
-        else No Protection
-            L7Detector-->>CLI: L7Result (Unprotected) 
-            CLI-->>User: "✗ No L7 Protection Detected"
-        end
-        
-        L7Detector-->>-CLI: L7Result
-        CLI-->>-User: Rich formatted output
-    end
-    
-    %% Full Scan Flow
-    rect rgb(255, 255, 200)
-        Note over User, HTTP: Full Scan (Combined)
-        User->>+CLI: port-checker full-scan target.com
-        CLI->>CLI: Execute Port Scan
-        CLI->>CLI: Execute L7 Detection
-        CLI-->>-User: Complete security assessment
-    end
-```
-
-## mTLS Authentication Flow
-
-The following sequence diagram illustrates the complete mTLS authentication checking process:
-
-```mermaid
-sequenceDiagram
-    participant Client as Simple Port Checker
-    participant Target as Target Server
-    participant CA as Certificate Authority
-    participant Logger as Metrics & Logging
-    
-    %% Initial Setup
-    rect rgb(200, 220, 255)
-        Note over Client: mTLS Check Initialization
-        Client->>Logger: Start mTLS check session
-        Client->>Client: Validate target hostname/IP
-        Client->>Client: Validate port range (1-65535)
-        alt Client certificates provided
-            Client->>Client: Validate cert/key files exist
-            Client->>Client: Verify cert/key pair match
-        end
-    end
-    
-    %% Phase 1: Server Certificate Discovery
-    rect rgb(200, 255, 200)
-        Note over Client,Target: Phase 1: Server Certificate Analysis
-        Client->>Target: TCP Connect (port 443/custom)
-        Target-->>Client: Connection established
-        
-        Client->>Target: TLS Handshake (no client cert)
-        Target->>Target: Present server certificate
-        Target-->>Client: Server certificate + chain
-        
-        Client->>Client: Parse X.509 certificate
-        Client->>Client: Extract subject, issuer, SAN, algorithms
-        Client->>Client: Verify certificate validity dates
-        Client->>Logger: Log certificate details
-    end
-    
-    %% Phase 2: Client Certificate Requirement Detection
-    rect rgb(255, 220, 200)
-        Note over Client,Target: Phase 2: Client Certificate Requirement Detection
-        Client->>Target: TLS Handshake (without client cert)
-        
-        alt Server requires client certificate
-            Target-->>Client: SSL Error: certificate required
-            Client->>Client: Set requires_client_cert = true
-            Client->>Client: Set client_cert_requested = true
-        else Server supports optional client certificate
-            Target-->>Client: SSL Error: handshake failure
-            Client->>Client: Set requires_client_cert = false
-            Client->>Client: Set client_cert_requested = true
-        else Server does not support mTLS
-            Target-->>Client: TLS Handshake successful
-            Client->>Client: Set supports_mtls = false
-            Client->>Client: Set client_cert_requested = false
-        end
-    end
-    
-    %% Phase 3: mTLS Authentication Testing (if certificates provided)
-    rect rgb(255, 200, 255)
-        Note over Client,Target: Phase 3: mTLS Authentication Testing
-        alt Client certificates provided
-            Client->>Client: Load client certificate chain
-            Client->>Client: Load private key
-            
-            Client->>Target: mTLS Handshake with client cert
-            Target->>Target: Verify client certificate
-            
-            alt Certificate validation successful
-                Target->>CA: Verify certificate chain (optional)
-                CA-->>Target: Certificate chain valid
-                Target-->>Client: mTLS Handshake successful
-                Target-->>Client: Cipher suite + TLS version
-                Client->>Client: Set handshake_successful = true
-                Client->>Client: Extract cipher suite info
-                Client->>Client: Extract TLS version
-            else Certificate validation failed
-                Target-->>Client: SSL Error: certificate verification failed
-                Client->>Client: Set handshake_successful = false
-                Client->>Client: Log authentication failure
-            end
-        else
-            Note over Client: Skip mTLS test (no client certificates)
-        end
-    end
-    
-    %% Phase 4: Results Compilation and Metrics
-    rect rgb(220, 220, 255)
-        Note over Client,Logger: Phase 4: Results & Metrics
-        Client->>Client: Compile MTLSResult object
-        Client->>Client: Update performance metrics
-        Client->>Logger: Log final results
-        
-        alt Batch operation
-            Client->>Client: Aggregate batch statistics
-            Client->>Client: Calculate success rates
-            Client->>Logger: Log batch completion metrics
-        end
-        
-        Client->>Logger: Record timing metrics
-        Client->>Logger: Update error counters
-    end
-    
-    %% Return Results
-    Note over Client: Return comprehensive mTLS analysis
-```
-
-### Flow Explanation
-
-1. **Initialization Phase** (Blue): Validates inputs, checks certificate files, and prepares for the mTLS check
-2. **Server Certificate Analysis** (Green): Establishes connection and analyzes the server's X.509 certificate
-3. **Client Certificate Detection** (Orange): Determines if the server supports/requires client certificates
-4. **mTLS Authentication Testing** (Purple): Tests actual mutual authentication if client certificates are provided
-5. **Results & Metrics** (Light Blue): Compiles results and updates performance metrics
-
-### Key Decision Points
-
-- **Certificate Requirement Detection**: Uses SSL error analysis to determine mTLS support level
-- **Authentication Testing**: Only performed when client certificates are available
-- **Error Handling**: Comprehensive error categorization for different failure modes
-- **Metrics Collection**: Tracks performance and reliability statistics throughout the process
-
-### Supported Detection Methods
-
-1. **Port Scanning**: TCP connection attempts with banner grabbing
-2. **HTTP Header Analysis**: Identifying protection service signatures
-3. **DNS Analysis**: CNAME records pointing to CDN/WAF providers
-4. **Response Pattern Matching**: Service-specific response signatures
-5. **IP Range Detection**: Known IP ranges for major providers
-
-## Supported L7 Protection Services
-
-- **AWS WAF** - Amazon Web Application Firewall
-- **Azure WAF** - Microsoft Azure Web Application Firewall  
-- **Azure Front Door** - Microsoft Azure Front Door
-- **Microsoft HTTPAPI** - Microsoft Web Application Proxy (WAP) or F5-protected ADFS Server
-- **F5 BIG-IP** - F5 Application Security Manager
-- **Cloudflare** - Cloudflare WAF and DDoS Protection
-- **Akamai** - Akamai Web Application Protector
-- **Imperva** - Imperva SecureSphere WAF
-- **Sucuri** - Sucuri Website Firewall
-- **Fastly** - Fastly Edge Security
-- **KeyCDN** - KeyCDN Security
-- **MaxCDN** - MaxCDN Security
-
-## Well-Known Ports Checked
-
-| Port | Service | Description |
-|------|---------|-------------|
-| 80 | HTTP | Web traffic |
-| 443 | HTTPS | Secure web traffic |
-| 8080 | HTTP-ALT | Alternative HTTP |
-| 8443 | HTTPS-ALT | Alternative HTTPS |
-| 3389 | RDP | Remote Desktop Protocol |
-| 22 | SSH | Secure Shell |
-| 21 | FTP | File Transfer Protocol |
-| 25 | SMTP | Simple Mail Transfer Protocol |
-| 53 | DNS | Domain Name System |
-| 110 | POP3 | Post Office Protocol |
-| 143 | IMAP | Internet Message Access Protocol |
-| 993 | IMAPS | IMAP over SSL |
-| 995 | POP3S | POP3 over SSL |
-| 587 | SMTP-MSA | SMTP Message Submission |
-
-## 🔒 SSL/TLS Certificate Analysis
-
-Simple Port Checker now includes comprehensive SSL/TLS certificate chain analysis capabilities, following best practices from DigiCert and Red Hat security guidelines. The certificate analysis features help you understand "Who signed my cert?" and identify potential trust issues.
-
-### Key Certificate Analysis Features
-
-- **🔍 Certificate Chain Analysis**: Complete validation of server, intermediate, and root certificates
-- **🏛️ Certificate Authority Identification**: Shows who signed each certificate in the chain
-- **⚠️ Missing Intermediate Detection**: Identifies incomplete certificate chains that could cause browser compatibility issues
-- **🔗 Chain of Trust Validation**: Verifies signature validity throughout the certificate chain
-- **🛡️ Security Analysis**: Hostname verification, expiration checking, and key algorithm analysis
-- **📋 Certificate Information**: Detailed certificate metadata, fingerprints, and extensions
-- **🔄 Revocation Infrastructure**: OCSP and CRL URL extraction for validation
-
-### Certificate Analysis Workflow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant CLI as Simple Port Checker
-    participant OpenSSL as OpenSSL Client
-    participant Server as Target Server
-    participant CA as Certificate Authority
-    
-    User->>CLI: cert-check example.com
-    CLI->>OpenSSL: Extract certificate chain
-    OpenSSL->>Server: TLS handshake
-    Server-->>OpenSSL: Certificate chain
-    OpenSSL-->>CLI: Raw certificates
-    
-    CLI->>CLI: Parse server certificate
-    CLI->>CLI: Parse intermediate certificates
-    CLI->>CLI: Validate chain of trust
-    
-    alt Missing Intermediates
-        CLI->>CA: Fetch missing certificates
-        CA-->>CLI: Intermediate certificates
-    end
-    
-    CLI->>CLI: Hostname validation
-    CLI->>CLI: Expiration checking
-    CLI->>CLI: Extract OCSP/CRL URLs
-    
-    CLI-->>User: Rich certificate analysis
-    Note over User,CLI: Shows: Chain validity, Trust issues,<br/>Missing intermediates, CA hierarchy
-```
-
-### Certificate Commands
-
-#### `cert-check` - Basic Certificate Analysis
-Analyze SSL/TLS certificate chain for a target host.
-
-```bash
-# Basic certificate analysis
-port-checker cert-check github.com
-
-# Disable hostname verification
-port-checker cert-check example.com --no-verify-hostname
-
-# Save results to JSON
-port-checker cert-check google.com --output cert_analysis.json
-```
-
-#### `cert-chain` - Complete Chain Analysis  
-Analyze complete certificate chain and trust path.
-
-```bash
-# Full chain analysis
-port-checker cert-chain github.com
-
-# Enable revocation checking
-port-checker cert-chain example.com --check-revocation
-
-# Verbose output with detailed chain information
-port-checker cert-chain google.com --verbose
-```
-
-#### `cert-info` - Detailed Certificate Information
-Show detailed certificate information and signing hierarchy.
-
-```bash
-# Certificate signing information
-port-checker cert-info github.com
-
-# Show certificate in PEM format
-port-checker cert-info example.com --show-pem
-
-# Export certificate details to JSON
-port-checker cert-info google.com --output cert_details.json
-```
-
-### Example Certificate Analysis Output
-
-```
-🔒 SSL/TLS Certificate Analysis - github.com
-┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Property            ┃ Value                                          ┃
-┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ Certificate Status  │ Valid                                          │
-│ Hostname Match      │ ✅ Valid                                       │
-│ Subject             │ CN=github.com                                  │
-│ Issuer              │ C=GB, ST=Greater Manchester, L=Salford,        │
-│                     │ O=Sectigo Limited, CN=Sectigo ECC Domain       │
-│                     │ Validation Secure Server CA                    │
-│ Valid From          │ 2025-02-05 00:00:00 UTC                        │
-│ Valid Until         │ 2026-02-05 23:59:59 UTC                        │
-└─────────────────────┴────────────────────────────────────────────────┘
-
-🏗️ Certificate Hierarchy (Chain of Trust)
-┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
-┃ Level             ┃ Certificate   ┃ Signed By    ┃
-┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
-│ 🖥️ Server          │ CN=github.com │ C=GB         │
-│ 🏢 Intermediate 1 │ C=GB          │ C=US         │
-│ 🏢 Intermediate 2 │ C=US          │ Unknown Root │
-└───────────────────┴───────────────┴──────────────┘
-
-⚠️ Missing Intermediate Certificates:
-  • Missing root certificate or additional intermediates after C=US
-```
-
-## CLI Commands
-
-### `port-checker scan`
-Scan target hosts for open ports.
-
-```bash
-port-checker scan TARGET [OPTIONS]
-
-Options:
-  --ports TEXT        Comma-separated list of ports (default: common ports)
-  --timeout INTEGER   Connection timeout in seconds (default: 3)
-  --concurrent INTEGER Maximum concurrent connections (default: 100)
-  --output TEXT       Output file (JSON format)
-  --verbose          Enable verbose output
-```
-
-### `port-checker l7-check`
-Check for L7 protection services.
-
-```bash
-port-checker l7-check TARGET [OPTIONS]
-
-Options:
-  --timeout INTEGER   Request timeout in seconds (default: 10)
-  --user-agent TEXT   Custom User-Agent string
-  --output TEXT       Output file (JSON format)
-  --verbose          Enable verbose output
-```
-
-### `port-checker full-scan`
-Perform both port scanning and L7 protection detection.
-
-```bash
-port-checker full-scan TARGET [OPTIONS]
-
-Options:
-  --ports TEXT        Comma-separated list of ports
-  --timeout INTEGER   Connection timeout in seconds
-  --concurrent INTEGER Maximum concurrent connections
-  --output TEXT       Output file (JSON format)
-  --verbose          Enable verbose output
-```
-
-### `port-checker mtls-check`
-Check for mTLS support on target hosts.
-
-```bash
-port-checker mtls-check TARGET [OPTIONS]
-
-Options:
-  --client-cert TEXT  Path to client certificate file
-  --client-key TEXT   Path to client private key file
-  --timeout INTEGER   Request timeout in seconds (default: 10)
-  --output TEXT       Output file (JSON format)
-  --verbose          Enable verbose output
-```
-
-### `port-checker mtls-gen-cert`
-Generate test certificates for mTLS testing.
-
-```bash
-port-checker mtls-gen-cert COMMON_NAME [OPTIONS]
-
-Options:
-  --days INTEGER      Number of days the certificate is valid (default: 365)
-  --output-dir TEXT   Directory to save the generated certificate and key
-  --verbose          Enable verbose output
-```
-
-### `port-checker mtls-validate-cert`
-Validate client certificate and key files.
-
-```bash
-port-checker mtls-validate-cert CERT_FILE KEY_FILE [OPTIONS]
-
-Options:
-  --verbose          Enable verbose output
-```
-
-### `port-checker cert-check` 
-Analyze SSL/TLS certificate chain for a target host.
-
-```bash
-port-checker cert-check TARGET [OPTIONS]
-
-Options:
-  -p, --port INTEGER              Target port (default: 443)
-  -t, --timeout INTEGER           Connection timeout in seconds
-  -o, --output TEXT               Output file for results (JSON)
-  --verify-hostname / --no-verify-hostname
-                                  Verify hostname against certificate
-  -v, --verbose                   Enable verbose output
-```
-
-### `port-checker cert-chain`
-Analyze complete certificate chain and trust path.
-
-```bash
-port-checker cert-chain TARGET [OPTIONS]
-
-Options:
-  -p, --port INTEGER              Target port (default: 443)
-  -t, --timeout INTEGER           Connection timeout in seconds  
-  -o, --output TEXT               Output file for results (JSON)
-  --check-revocation / --no-check-revocation
-                                  Check certificate revocation status
-  -v, --verbose                   Enable verbose output
-```
-
-### `port-checker cert-info`
-Show detailed certificate information and who signed it.
-
-```bash
-port-checker cert-info TARGET [OPTIONS]
-
-Options:
-  -p, --port INTEGER              Target port (default: 443)
-  -t, --timeout INTEGER           Connection timeout in seconds
-  -o, --output TEXT               Output file for results (JSON)
-  --show-pem / --no-show-pem      Show certificate in PEM format
-  -v, --verbose                   Enable verbose output
-```
-
-### `port-checker hybrid-identity` (NEW!)
-Check for hybrid identity setup (Azure AD/ADFS integration).
-
-This command discovers ADFS endpoints using the **same method as Azure Portal** - by querying Azure AD's user realm API. This is much more reliable than guessing ADFS URLs!
-
-```bash
-port-checker hybrid-identity TARGET [TARGET...] [OPTIONS]
-
-Options:
-  -t, --timeout INTEGER           Request timeout in seconds (default: 10)
-  -o, --output TEXT               Output file (JSON format)
-  -v, --verbose                   Enable verbose output with DNS details
-  -c, --concurrent INTEGER        Maximum concurrent checks (default: 10)
-
-Examples:
-  # Check single domain
-  port-checker hybrid-identity example.com
-  
-  # Check multiple domains with verbose output
-  port-checker hybrid-identity domain1.com domain2.com --verbose
-  
-  # Batch check with output
-  port-checker hybrid-identity $(cat domains.txt) --output results.json
-```
-
-**What it checks:**
-- ✅ **ADFS endpoints via Azure AD login flow** (most reliable - same as portal.azure.com)
-- ✅ Federation metadata endpoints
-- ✅ Azure AD integration and redirects
-- ✅ OpenID Connect configuration
-- ✅ DNS records for Microsoft services
-
-See [docs/hybrid-identity.md](docs/hybrid-identity.md) for detailed documentation.
-
-## Configuration
-
-Create a configuration file at `~/.port-checker.yaml`:
-
-```yaml
-default_ports: [80, 443, 8080, 8443, 22, 21, 25, 53]
-timeout: 5
-concurrent_limit: 50
-user_agent: "SimplePortChecker/1.0"
-```
-
-## Development
-
-### Setup Development Environment
-
-```bash
-git clone https://github.com/htunnthuthu/simple-port-checker.git
-cd simple-port-checker
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+git clone https://github.com/htunn/offsec-ai.git
+cd offsec-ai
 pip install -e ".[dev]"
 ```
 
-### Run Tests
+### Docker
 
 ```bash
-pytest
-pytest --cov=simple_port_checker  # With coverage
+docker run --rm htunnthuthu/offsec-ai:latest --help
 ```
 
-### Code Formatting
-
-```bash
-black src/ tests/
-isort src/ tests/
-flake8 src/ tests/
-mypy src/
-```
-
-### Pre-commit Hooks
-
-```bash
-pre-commit install
-pre-commit run --all-files
-```
-
-## Production Deployment Examples
-
-### Enterprise Security Audit Script
-
-```bash
-#!/bin/bash
-# enterprise-mtls-audit.sh
-# Production-ready mTLS security audit script
-
-set -euo pipefail
-
-# Configuration
-TARGETS_FILE="production-apis.txt"
-CLIENT_CERT="/secure/certs/audit-client.crt"
-CLIENT_KEY="/secure/keys/audit-client.key"
-CA_BUNDLE="/etc/ssl/certs/enterprise-ca-bundle.pem"
-OUTPUT_DIR="/var/log/security-audits"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
-# Create output directory
-mkdir -p "$OUTPUT_DIR"
-
-echo "🔍 Starting Enterprise mTLS Security Audit - $TIMESTAMP"
-
-# Validate certificate files
-if ! port-checker mtls-validate-cert "$CLIENT_CERT" "$CLIENT_KEY"; then
-    echo "❌ Certificate validation failed"
-    exit 1
-fi
-
-# Run comprehensive audit
-port-checker mtls-check \
-    --client-cert "$CLIENT_CERT" \
-    --client-key "$CLIENT_KEY" \
-    --ca-bundle "$CA_BUNDLE" \
-    --timeout 30 \
-    --concurrent 10 \
-    --verbose \
-    --output "$OUTPUT_DIR/mtls-audit-$TIMESTAMP.json" \
-    $(cat "$TARGETS_FILE")
-
-echo "✅ Audit completed. Results saved to $OUTPUT_DIR/mtls-audit-$TIMESTAMP.json"
-
-# Generate summary report
-python3 -c "
-import json
-import sys
-
-with open('$OUTPUT_DIR/mtls-audit-$TIMESTAMP.json') as f:
-    data = json.load(f)
-
-total = data['total_targets']
-mtls_required = data['mtls_required_count']
-mtls_supported = data['mtls_supported_count']
-
-print(f'📊 Audit Summary:')
-print(f'   Total APIs: {total}')
-print(f'   mTLS Required: {mtls_required} ({mtls_required/total*100:.1f}%)')
-print(f'   mTLS Supported: {mtls_supported} ({mtls_supported/total*100:.1f}%)')
-
-if mtls_required < total * 0.8:
-    print('⚠️  WARNING: Less than 80% of APIs require mTLS')
-    sys.exit(1)
-else:
-    print('✅ Good: Majority of APIs properly secured with mTLS')
-"
-```
-
-### Kubernetes Deployment Health Check
-
-```yaml
-# k8s-mtls-healthcheck.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mtls-health-check
-data:
-  check-mtls.sh: |
-    #!/bin/bash
-    set -e
-    
-    # Check service mesh mTLS configuration
-    port-checker mtls-check \
-      service-a.production.svc.cluster.local:8443 \
-      service-b.production.svc.cluster.local:8443 \
-      --client-cert /etc/certs/tls.crt \
-      --client-key /etc/certs/tls.key \
-      --ca-bundle /etc/ca-certs/ca.crt \
-      --timeout 10 \
-      --output /tmp/mtls-health.json
-    
-    # Validate all services require mTLS
-    if ! grep -q '"requires_client_cert": true' /tmp/mtls-health.json; then
-      echo "❌ mTLS not properly configured"
-      exit 1
-    fi
-    
-    echo "✅ mTLS health check passed"
 ---
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: mtls-health-check
-spec:
-  schedule: "*/15 * * * *"  # Every 15 minutes
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-          - name: mtls-checker
-            image: python:3.12-slim
-            command:
-            - /bin/bash
-            - /scripts/check-mtls.sh
-            volumeMounts:
-            - name: scripts
-              mountPath: /scripts
-            - name: certs
-              mountPath: /etc/certs
-            - name: ca-certs
-              mountPath: /etc/ca-certs
-          volumes:
-          - name: scripts
-            configMap:
-              name: mtls-health-check
-              defaultMode: 0755
-          - name: certs
-            secret:
-              secretName: service-mesh-certs
-          - name: ca-certs
-            secret:
-              secretName: ca-certificates
-          restartPolicy: OnFailure
+
+## Quick Start
+
+```
+  ██████╗ ███████╗███████╗███████╗███████╗ ██████╗       █████╗ ██╗
+ ██╔═══██╗██╔════╝██╔════╝██╔════╝██╔════╝██╔════╝      ██╔══██╗██║
+ ██║   ██║█████╗  █████╗  ███████╗█████╗  ██║     █████╗███████║██║
+ ██║   ██║██╔══╝  ██╔══╝  ╚════██║██╔══╝  ██║     ╚════╝██╔══██║██║
+ ╚██████╔╝██║     ██║     ███████║███████╗╚██████╗       ██║  ██║██║
+  ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚══════╝ ╚═════╝       ╚═╝  ╚═╝╚═╝
+  Offensive-Security Toolkit · AI/LLM · MCP · Red-Team
 ```
 
-### CI/CD Pipeline Integration
-
-```yaml
-# .github/workflows/mtls-security-scan.yml
-name: mTLS Security Scan
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM
-
-jobs:
-  mtls-security-scan:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    
-    - name: Install Simple Port Checker
-      run: |
-        pip install simple-port-checker cryptography
-    
-    - name: Setup test certificates
-      run: |
-        # Generate test certificates for scanning
-        port-checker mtls-gen-cert ci-test-client
-        
-    - name: Run mTLS Security Scan
-      env:
-        API_ENDPOINTS: ${{ secrets.API_ENDPOINTS }}
-      run: |
-        echo "$API_ENDPOINTS" > endpoints.txt
-        
-        port-checker mtls-check \
-          --client-cert ci-test-client.crt \
-          --client-key ci-test-client.key \
-          --timeout 30 \
-          --concurrent 5 \
-          --output mtls-scan-results.json \
-          $(cat endpoints.txt)
-    
-    - name: Analyze Results
-      run: |
-        python3 -c "
-        import json
-        import os
-        
-        with open('mtls-scan-results.json') as f:
-            data = json.load(f)
-        
-        failed = data['failed_checks']
-        total = data['total_targets']
-        
-        if failed > 0:
-            print(f'❌ {failed}/{total} endpoints failed mTLS check')
-            exit(1)
-        else:
-            print(f'✅ All {total} endpoints passed mTLS check')
-        "
-    
-    - name: Upload Results
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: mtls-scan-results
-        path: mtls-scan-results.json
-        retention-days: 30
-```
-
-### Docker Container Security Scan
-
-```dockerfile
-# Dockerfile.mtls-scanner
-FROM python:3.12-slim
-
-# Install security scanning tools
-RUN apt-get update && apt-get install -y \
-    openssl \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Simple Port Checker
-RUN pip install simple-port-checker cryptography
-
-# Create scanner script
-COPY mtls-scan.py /app/
-COPY entrypoint.sh /app/
-
-WORKDIR /app
-ENTRYPOINT ["./entrypoint.sh"]
-```
+### CLI
 
 ```bash
-# entrypoint.sh
-#!/bin/bash
-set -euo pipefail
+# AI / LLM security
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions
+offsec-ai mcp-scan https://mcp.example.com/mcp
+offsec-ai mcp-attack https://mcp.example.com/mcp --i-have-authorization
 
-echo "🔍 Starting Container mTLS Security Scan"
+# Infrastructure
+offsec-ai scan example.com
+offsec-ai l7-check example.com
+offsec-ai cert-check example.com
+offsec-ai owasp-scan example.com
+offsec-ai hybrid-identity example.com
+offsec-ai mtls-check example.com
+```
 
-# Default configuration
-TARGETS=${TARGETS:-""}
-TIMEOUT=${TIMEOUT:-"30"}
-CONCURRENT=${CONCURRENT:-"10"}
-OUTPUT=${OUTPUT:-"/tmp/mtls-results.json"}
+### Python API
 
-if [ -z "$TARGETS" ]; then
-    echo "❌ No targets specified. Set TARGETS environment variable."
-    exit 1
-fi
+```python
+import asyncio
+from offsec_ai import LLMOwaspScanner, MCPScanner, MCPAttacker, AuthorizationRequired
 
-# Run the scan
-python3 /app/mtls-scan.py \
-    --targets "$TARGETS" \
-    --timeout "$TIMEOUT" \
-    --concurrent "$CONCURRENT" \
-    --output "$OUTPUT"
+async def main():
+    # AI OWASP scan
+    scanner = LLMOwaspScanner("https://api.example.com/v1/chat/completions")
+    result = await scanner.scan()
+    print(f"Grade: {result.overall_grade}  Score: {result.total_score}")
+    for cat_id, cat in result.categories.items():
+        if cat.findings:
+            print(f"  {cat_id}: {len(cat.findings)} finding(s) — grade {cat.grade}")
 
-echo "✅ Scan completed. Results in $OUTPUT"
+    # MCP scan
+    mcp = MCPScanner("https://mcp.example.com/mcp")
+    mcp_result = await mcp.scan()
+    print(f"MCP vulnerabilities: {len(mcp_result.vulnerabilities)}")
+
+    # MCP attack (requires explicit authorization)
+    try:
+        attacker = MCPAttacker(authorized=True)   # must be True
+        report = await attacker.attack(
+            target="https://mcp.example.com/mcp",
+            transport="http",
+            mode="safe",
+        )
+        print(f"Attacks run: {report.attacks_run}, triggered: {len(report.triggered_results)}")
+    except AuthorizationRequired:
+        print("Provide authorized=True to unlock attack mode")
+
+asyncio.run(main())
+```
+
+---
+
+## AI OWASP Top 10 Scanner
+
+Probes a live LLM/chat endpoint for the [OWASP LLM Top 10](https://owasp.org/www-project-top-10-for-large-language-model-applications/). Designed for black-box testing — no model access required.
+
+### Categories Covered
+
+| ID | Category | Safe Mode | Deep Mode |
+|----|----------|-----------|-----------|
+| LLM01 | Prompt Injection | ✅ | ✅ |
+| LLM02 | Sensitive Information Disclosure | ✅ | ✅ |
+| LLM03 | Supply Chain | 🚫 | 🚫 |
+| LLM04 | Data & Model Poisoning | 🚫 | 🚫 |
+| LLM05 | Improper Output Handling (XSS/SQLi) | ✅ | ✅ |
+| LLM06 | Excessive Agency | ✅ | ✅ |
+| LLM07 | System Prompt Leakage | ✅ | ✅ |
+| LLM08 | Vector & Embedding Weaknesses | 🚫 | 🚫 |
+| LLM09 | Misinformation | ✅ | ✅ |
+| LLM10 | Unbounded Consumption | ✅ | ✅ |
+
+🚫 = Not externally testable via black-box probing
+
+### CLI Usage
+
+```bash
+# Basic scan (safe mode, OpenAI-compatible endpoint)
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions
+
+# Deep mode with all probes
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions --mode deep
+
+# Specific categories only
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions \
+  --categories LLM01,LLM02,LLM07
+
+# Generic/custom API format (non-OpenAI)
+offsec-ai ai-owasp-scan https://chat.example.com/api/chat --api-format generic
+
+# With authentication header
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions \
+  --header "Authorization: Bearer sk-..."
+
+# JSON output
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions --output results.json
+
+# Enable LLM judge (requires OPENAI_API_KEY or ANTHROPIC_API_KEY env var)
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
+```
+
+### Python API
+
+```python
+import asyncio
+from offsec_ai import LLMOwaspScanner, LLMScanMode, LLMJudge
+
+async def main():
+    # Optional: enable LLM judge for smarter detection
+    judge = LLMJudge.from_env()  # reads OPENAI_API_KEY / ANTHROPIC_API_KEY
+
+    scanner = LLMOwaspScanner(
+        endpoint="https://api.example.com/v1/chat/completions",
+        mode=LLMScanMode.DEEP,
+        categories=["LLM01", "LLM02", "LLM07"],
+        api_format="openai",
+        headers={"Authorization": "Bearer sk-..."},
+        judge=judge,                # None = rule-based only
+    )
+
+    result = await scanner.scan()
+    print(f"Grade: {result.overall_grade}  ({result.total_score} pts)")
+
+    for cat_id, cat in result.categories.items():
+        if cat.findings:
+            print(f"\n{cat_id}: {cat.category_name}")
+            for finding in cat.findings:
+                print(f"  [{finding.severity.value}] {finding.title}")
+                print(f"  Evidence: {finding.evidence[:80]}...")
+
+asyncio.run(main())
+```
+
+### Severity & Grading
+
+| Severity | Points |
+|----------|--------|
+| CRITICAL | 15 |
+| HIGH | 10 |
+| MEDIUM | 5 |
+| LOW | 1 |
+
+Grade: A (0–10), B (11–25), C (26–50), D (51–100), F (>100 or any CRITICAL finding).
+
+### LLM Judge (Optional)
+
+Install the `[ai]` extra and set an API key to enable smarter semantic detection:
+
+```bash
+pip install "offsec-ai[ai]"
+export OPENAI_API_KEY="sk-..."   # or ANTHROPIC_API_KEY
+```
+
+Without the extra, detection falls back to rule-based pattern matching.
+
+---
+
+## MCP Security Scanner
+
+Scans [Model Context Protocol](https://modelcontextprotocol.io) servers for security vulnerabilities. Supports HTTP/SSE transports (remote URL) and stdio transport (local subprocess).
+
+### CVEs / Checks Performed
+
+| Check | Description |
+|-------|-------------|
+| Unauthenticated Exposure | Server accessible without credentials |
+| Tool Poisoning | Malicious instructions hidden in tool descriptions |
+| Path Traversal in Resources | `../` patterns in resource URIs |
+| Command Injection | Shell metacharacters in tool params |
+| Secrets in Descriptions | API keys, passwords leaked in tool/resource descriptions |
+| Excessive Agency | Unrestricted file system or network tools |
+| Prompt Injection via Tool Response | LLM instruction injection through tool output |
+| Rug-pull / Tool Shadowing | Tool behavior changed post-trust-establishment |
+
+### CLI Usage
+
+```bash
+# Scan HTTP/SSE MCP endpoint
+offsec-ai mcp-scan https://mcp.example.com/mcp
+
+# Scan local stdio server
+offsec-ai mcp-scan --transport stdio --cmd "npx @example/mcp-server"
+
+# With authentication
+offsec-ai mcp-scan https://mcp.example.com/mcp \
+  --header "Authorization: Bearer token"
+
+# JSON output
+offsec-ai mcp-scan https://mcp.example.com/mcp --output mcp-scan.json
+
+# Verbose output
+offsec-ai mcp-scan https://mcp.example.com/mcp --verbose
+```
+
+### Python API
+
+```python
+import asyncio
+from offsec_ai import MCPScanner, MCPTransport
+
+async def main():
+    # HTTP transport
+    scanner = MCPScanner(
+        target="https://mcp.example.com/mcp",
+        transport=MCPTransport.HTTP,
+        headers={"Authorization": "Bearer token"},
+    )
+    result = await scanner.scan()
+
+    print(f"Server: {result.server_info.name} v{result.server_info.version}")
+    print(f"Tools: {len(result.tools)}, Resources: {len(result.resources)}")
+    print(f"Vulnerabilities: {len(result.vulnerabilities)}")
+
+    for vuln in result.vulnerabilities:
+        print(f"  [{vuln.severity.value}] {vuln.title}: {vuln.description}")
+
+    # Stdio transport
+    scanner = MCPScanner(
+        target="stdio://local",
+        transport=MCPTransport.STDIO,
+        cmd=["npx", "@example/mcp-server"],
+    )
+    result = await scanner.scan()
+
+asyncio.run(main())
+```
+
+---
+
+## MCP Attacker
+
+Performs active security testing against MCP servers. **Requires explicit authorization.**
+
+### Attack Suite
+
+| Attack | Safe Mode | Deep Mode | Description |
+|--------|-----------|-----------|-------------|
+| Auth Bypass | ✅ | ✅ | Null token, empty bearer, X-Forwarded-For injection |
+| Path Traversal | ❌ | ✅ | `/etc/passwd`, `.env`, `shadow` file read attempts |
+| Tool Injection | ❌ | ✅ | Malicious payload in tool call arguments |
+| Command Injection | ❌ | ✅ | Shell metacharacter injection in tool params |
+
+### CLI Usage
+
+```bash
+# Safe mode (auth bypass only) — must provide --i-have-authorization
+offsec-ai mcp-attack https://mcp.example.com/mcp --i-have-authorization
+
+# Deep mode (all attacks)
+offsec-ai mcp-attack https://mcp.example.com/mcp \
+  --i-have-authorization --mode deep
+
+# JSON output
+offsec-ai mcp-attack https://mcp.example.com/mcp \
+  --i-have-authorization --output attack-report.json
+```
+
+### Python API
+
+```python
+import asyncio
+from offsec_ai import MCPAttacker, MCPScanner, AuthorizationRequired
+
+async def main():
+    # Authorization is enforced at instantiation
+    try:
+        bad = MCPAttacker()               # raises AuthorizationRequired
+    except AuthorizationRequired:
+        pass
+
+    attacker = MCPAttacker(authorized=True)
+
+    # Optional: use scan result to guide attacks
+    scanner = MCPScanner("https://mcp.example.com/mcp")
+    scan_result = await scanner.scan()
+
+    report = await attacker.attack(
+        target="https://mcp.example.com/mcp",
+        transport="http",
+        mode="deep",
+        scan_result=scan_result,
+    )
+
+    print(f"Attacks run: {report.attacks_run}")
+    print(f"Triggered: {len(report.triggered_results)}")
+    for r in report.triggered_results:
+        print(f"  [{r.severity.value}] {r.title}")
+
+asyncio.run(main())
+```
+
+---
+
+## Infrastructure Scanning
+
+### Port Scanner
+
+```bash
+offsec-ai scan example.com
+offsec-ai scan example.com --ports 80,443,8080,8443
+offsec-ai scan example.com google.com --output results.json
 ```
 
 ```python
-# mtls-scan.py
-#!/usr/bin/env python3
+from offsec_ai import PortChecker
 import asyncio
-import argparse
-import json
-import logging
-import sys
-from simple_port_checker import MTLSChecker
 
 async def main():
-    parser = argparse.ArgumentParser(description='Container mTLS Security Scanner')
-    parser.add_argument('--targets', required=True, help='Comma-separated list of targets')
-    parser.add_argument('--timeout', type=int, default=30, help='Connection timeout')
-    parser.add_argument('--concurrent', type=int, default=10, help='Max concurrent checks')
-    parser.add_argument('--output', default='/tmp/results.json', help='Output file')
-    parser.add_argument('--verbose', action='store_true', help='Verbose logging')
-    
-    args = parser.parse_args()
-    
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
-    
-    # Parse targets
-    targets = [t.strip() for t in args.targets.split(',') if t.strip()]
-    
-    # Initialize checker
-    checker = MTLSChecker(timeout=args.timeout, enable_logging=args.verbose)
-    
-    print(f"🔍 Scanning {len(targets)} targets...")
-    
-    # Run scan
-    results = await checker.batch_check_mtls(targets, max_concurrent=args.concurrent)
-    
-    # Generate summary
-    successful = sum(1 for r in results if r.error_message is None)
-    mtls_supported = sum(1 for r in results if r.supports_mtls)
-    mtls_required = sum(1 for r in results if r.requires_client_cert)
-    
-    summary = {
-        'total_targets': len(targets),
-        'successful_checks': successful,
-        'failed_checks': len(targets) - successful,
-        'mtls_supported': mtls_supported,
-        'mtls_required': mtls_required,
-        'results': [r.dict() for r in results]
-    }
-    
-    # Save results
-    with open(args.output, 'w') as f:
-        json.dump(summary, f, indent=2)
-    
-    print(f"📊 Results: {successful}/{len(targets)} successful")
-    print(f"🔐 mTLS: {mtls_supported} supported, {mtls_required} required")
-    
-    # Exit with error if any checks failed
-    if successful < len(targets):
-        sys.exit(1)
+    checker = PortChecker()
+    result = await checker.scan_host("example.com", ports=[80, 443, 8080])
+    open_ports = [p for p in result.ports if p.is_open]
+    print(f"Open: {[p.port for p in open_ports]}")
 
-if __name__ == '__main__':
-    asyncio.run(main())
+asyncio.run(main())
 ```
 
-### Usage Examples
+### L7 Protection Detection
 
 ```bash
-# Run the container scanner
-docker run --rm \
-  -e TARGETS="api1.example.com,api2.example.com:8443" \
-  -e TIMEOUT=30 \
-  -e CONCURRENT=5 \
-  -v $(pwd)/results:/tmp \
-  mtls-scanner:latest
-
-# Enterprise audit
-./enterprise-mtls-audit.sh
-
-# Quick security check
-port-checker mtls-check \
-  api.example.com \
-  secure-api.example.com:8443 \
-  --verbose \
-  --output security-assessment.json
+offsec-ai l7-check example.com
+offsec-ai l7-check example.com --trace-dns
+offsec-ai full-scan example.com
 ```
 
-## Docker Usage
-
-Simple Port Checker is available as a Docker image for easy deployment and isolation.
-
-### Quick Docker Examples
+### SSL/TLS Certificate Analysis
 
 ```bash
-# Basic port check
-docker run --rm htunnthuthu/simple-port-checker:latest google.com 443
-
-# mTLS check
-docker run --rm htunnthuthu/simple-port-checker:latest google.com 443 --mtls
-
-# Port range scan
-docker run --rm htunnthuthu/simple-port-checker:latest --scan-range 192.168.1.1-254 --ports 22,80,443
-
-# L7 protection check
-docker run --rm htunnthuthu/simple-port-checker:latest l7-check example.com
-
-# Interactive shell
-docker run -it --rm htunnthuthu/simple-port-checker:latest bash
+offsec-ai cert-check example.com
+offsec-ai cert-chain github.com
+offsec-ai cert-info google.com
 ```
 
-### Available Tags
+```python
+from offsec_ai import CertificateAnalyzer
+import asyncio
 
-- `latest` - Latest stable release
-- `vX.Y.Z` - Specific version tags
-- `main` - Latest development build
+async def main():
+    analyzer = CertificateAnalyzer()
+    chain = await analyzer.analyze_certificate_chain("example.com", 443)
+    print(f"Subject: {chain.server_cert.subject}")
+    print(f"Issuer: {chain.server_cert.issuer}")
+    print(f"Chain complete: {chain.chain_complete}")
+    print(f"Days until expiry: {chain.server_cert.days_until_expiry}")
 
-### Multi-Architecture Support
+asyncio.run(main())
+```
 
-Images are built for multiple architectures:
-- `linux/amd64` - Intel/AMD 64-bit
-- `linux/arm64` - ARM 64-bit (Apple Silicon, ARM servers)
-
-For detailed Docker usage instructions, see [Docker Documentation](docs/DOCKER.md).
-
-
-## Summary
-
-The Simple Port Checker with mTLS authentication support provides a comprehensive, production-ready solution for:
-
-- **🔒 Security Assessment**: Complete mTLS configuration analysis
-- **📋 Compliance Auditing**: Automated compliance checking for enterprise environments  
-- **🛡️ API Security**: Client certificate authentication testing
-- **🔍 Certificate Management**: Validation and generation of certificates
-- **📊 Performance Monitoring**: Detailed metrics and reliability tracking
-- **🚀 Production Integration**: CI/CD pipeline and enterprise deployment support
-
-### Key Advantages
-
-1. **Production-Ready**: Built with enterprise security and reliability requirements
-2. **Comprehensive Analysis**: Complete mTLS authentication flow validation
-3. **Flexible Integration**: Support for various deployment scenarios (CLI, API, containers)
-4. **Detailed Reporting**: Rich output formats with actionable insights
-5. **Performance Optimized**: Concurrent processing with configurable retry logic
-6. **Security Focused**: Best practices for certificate handling and validation
-
-### Getting Started
+### mTLS Checker
 
 ```bash
-# Install with mTLS support
-pip install simple-port-checker cryptography
-
-# Quick mTLS check
-port-checker mtls-check api.example.com --verbose
-
-# Generate test certificates
-port-checker mtls-gen-cert test-client.example.com
-
-# Enterprise security audit
-port-checker mtls-check $(cat production-apis.txt) \
-  --client-cert audit-client.crt \
-  --client-key audit-client.key \
-  --output security-audit.json \
-  --verbose
+offsec-ai mtls-check example.com
+offsec-ai mtls-check example.com --client-cert client.crt --client-key client.key
+offsec-ai mtls-gen-cert test-client.example.com
+offsec-ai mtls-validate-cert client.crt client.key
 ```
 
-The mTLS functionality seamlessly integrates with existing port scanning and L7 protection detection features, providing a complete security assessment toolkit for modern infrastructure.
+### OWASP Top 10 Web Scanner (2021 & 2025)
 
+```bash
+offsec-ai owasp-scan example.com
+offsec-ai owasp-scan example.com --deep
+offsec-ai owasp-scan example.com -c A02,A05,A07 -t nginx --verbose
+offsec-ai owasp-scan example.com -f pdf -o report.pdf
+```
 
-## What's New in v0.2.0 🎉
+### Hybrid Identity Detection
 
-This major release brings significant improvements to project structure and functionality:
+```bash
+offsec-ai hybrid-identity example.com
+offsec-ai hybrid-identity example.com --verbose --output results.json
+```
 
-### 🏗️ **Complete Project Refactoring**
-- **Unified CLI**: All functionality now accessible through main `port-checker` command
-- **Clean Architecture**: Proper Python package structure following best practices
-- **Type Safety**: Full type hint support with `py.typed` file
+---
 
-### 🔍 **Enhanced DNS Analysis**
-- **DNS Trace Command**: New `dns-trace` command for detailed CNAME chain analysis
-- **Integrated Tracing**: Use `--trace-dns` flag with L7 checks for comprehensive analysis
-- **Better Detection**: Improved protection detection through DNS-based analysis
+## All CLI Commands
 
-### 🚀 **Production Ready**
-- **Security Policy**: Added comprehensive security guidelines
-- **Better Testing**: Reorganized test suite following Python standards
-- **Documentation**: Updated and improved documentation
-- **CI/CD Ready**: Optimized for automated builds and publishing
+```
+offsec-ai --help
 
-### ⚡ **Breaking Changes**
-- Removed standalone scripts (use unified CLI instead)
-- Moved tests to top-level directory
-- Removed `run.py` (use `python -m simple_port_checker` or installed commands)
+Commands:
+  ai-owasp-scan       Probe a live LLM/AI endpoint for AI OWASP Top 10
+  mcp-scan            Scan an MCP endpoint for security vulnerabilities
+  mcp-attack          Perform authorized active testing against an MCP server
+  scan                Scan target hosts for open ports
+  l7-check            Check for L7 protection services (WAF, CDN, etc.)
+  full-scan           Port scan + L7 protection detection
+  cert-check          Analyze SSL/TLS certificate chain
+  cert-chain          Analyze complete certificate chain and trust path
+  cert-info           Show detailed certificate information
+  dns-trace           Trace DNS records and analyze L7 protection
+  owasp-scan          OWASP Top 10 2021/2025 vulnerability scanner
+  hybrid-identity     Check for Azure AD/ADFS hybrid identity setup
+  mtls-check          Check for mTLS authentication support
+  mtls-gen-cert       Generate a self-signed certificate for mTLS testing
+  mtls-validate-cert  Validate client certificate and private key files
+  service-detect      Detect service version and information
+```
 
+---
 
-## Contributing
+## Docker
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+```bash
+docker run --rm htunnthuthu/offsec-ai:latest ai-owasp-scan https://api.example.com/v1/chat/completions
+docker run --rm htunnthuthu/offsec-ai:latest mcp-scan https://mcp.example.com/mcp
+docker run --rm htunnthuthu/offsec-ai:latest scan example.com
+docker run --rm htunnthuthu/offsec-ai:latest owasp-scan example.com
+
+# Save output to host
+docker run --rm -v $(pwd):/app/output htunnthuthu/offsec-ai:latest \
+  ai-owasp-scan https://api.example.com/v1/chat/completions \
+  --output /app/output/llm-report.json
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `OPENAI_API_KEY` | Enable OpenAI-based LLM judge |
+| `ANTHROPIC_API_KEY` | Enable Anthropic-based LLM judge |
+| `OFFSEC_LLM_BASE_URL` | Custom OpenAI-compatible base URL for LLM judge |
+
+### Optional Extras
+
+```bash
+pip install "offsec-ai[ai]"   # Adds openai + anthropic for LLM judge
+```
+
+---
+
+## Security & Ethics
+
+This tool is designed for **authorized security assessments only**.
+
+- Active attack features display an authorization banner and require `--i-have-authorization`
+- `MCPAttacker(authorized=False)` raises `AuthorizationRequired` at instantiation — cannot be bypassed
+- Default scan modes are passive (safe mode) and will not modify target systems
+- Do not use against systems you do not own or lack explicit written permission to test
+
+Please review [SECURITY.md](SECURITY.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before contributing.
+
+---
+
+## Requirements
+
+- Python 3.12+
+- See [requirements.txt](requirements.txt) for full dependency list
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
-
-### v0.5.3 (Latest)
-- **Enhanced F5 Big-IP Detection**: Comprehensive F5 Big-IP detection improvements
-  - Advanced cookie pattern recognition (BIGipServer*, f5avr*_session_, TS* cookies)
-  - Improved banking domain support with intelligent fallback methods
-  - Enhanced detection for enterprise F5 deployments with custom configurations
-- **Certificate Chain Analysis Improvements**: Major SSL/TLS certificate analysis enhancements
-  - Fixed certificate chain completeness logic for trusted intermediate CAs
-  - Comprehensive trusted root CA database (Amazon, Google, GlobalSign, Let's Encrypt, etc.)
-  - Support for Let's Encrypt E1-E9 intermediate certificates
-  - Resolved cryptography library deprecation warnings
-  - Smart recognition of trusted intermediates leading to known roots
-- **Accuracy Improvements**: Refined L7 detection patterns to eliminate false positives
-- **Code Quality**: Updated deprecated datetime properties for modern cryptography library
-
-### v0.4.2
-- **Documentation Enhancement**: Added PyPI statistics and download badges to README
-- **Privacy Improvements**: Removed specific site references from documentation
-- **Professional Standards**: Enhanced documentation quality and consistency
-- **Version Management**: Improved version consistency across all files
-
-### v0.4.1
-- **L7 Detection Fix**: Fixed critical false positive where CloudFront sites were misidentified as F5 Big-IP
-- **Enhanced AWS WAF Detection**: Now distinguishes between "CloudFront - AWS WAF" and pure "AWS WAF"
-- **Improved Accuracy**: Better detection logic for AWS CloudFront vs F5 Big-IP services
-- **Bug Fixes**: Corrected via header analysis and fallback detection logic
-
-### v0.4.0
-- **Docker Support**: Official Docker images now available on Docker Hub
-- Enhanced README.md with comprehensive Docker usage examples
-- Docker workflow configured for manual deployment to PyPI environment
-- Multi-architecture Docker image support (AMD64, ARM64)
-- Automated Docker builds with GitHub Actions
-- Updated project documentation to highlight Docker availability
-
-### v0.2.0
-- Major project refactoring and cleanup
-- Unified CLI interface with DNS trace functionality
-- Production-ready structure with type hints
-- Enhanced security and documentation
-
-### v0.1.0 (Initial Release)
-- Basic port scanning functionality
-- L7 protection detection
-- CLI interface
-- Async support
-- Rich terminal output
-
-## Security Considerations
-
-This tool is intended for legitimate security testing and network diagnostics only. Users are responsible for ensuring they have proper authorization before scanning any networks or systems they do not own.
-
-For security vulnerabilities, please see our [Security Policy](SECURITY.md).
-
-## Support
-
-- 📖 [Documentation](https://github.com/htunn/simple-port-checker#readme)
-- 🐛 [Issue Tracker](https://github.com/htunn/simple-port-checker/issues)
-
-## Acknowledgments
-
-- Thanks to the Python community for excellent libraries
-- Inspired by nmap and other network scanning tools
-- Built with ❤️ for the security community
-
-
+MIT — see [LICENSE](LICENSE)

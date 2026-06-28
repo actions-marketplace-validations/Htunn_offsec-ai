@@ -2,28 +2,28 @@
 
 ## Command
 ```bash
-port-checker hybrid-identity [DOMAINS...] [OPTIONS]
+offsec-ai hybrid-identity [DOMAINS...] [OPTIONS]
 ```
 
 ## Quick Examples
 ```bash
 # Single domain
-port-checker hybrid-identity example.com
+offsec-ai hybrid-identity example.com
 
 # Multiple domains
-port-checker hybrid-identity domain1.com domain2.com domain3.com
+offsec-ai hybrid-identity domain1.com domain2.com domain3.com
 
 # From file
-port-checker hybrid-identity $(cat domains.txt)
+offsec-ai hybrid-identity $(cat domains.txt)
 
 # With output
-port-checker hybrid-identity example.com -o results.json
+offsec-ai hybrid-identity example.com -o results.json
 
 # Verbose mode
-port-checker hybrid-identity example.com -v
+offsec-ai hybrid-identity example.com -v
 
 # Custom settings
-port-checker hybrid-identity example.com -t 15 -c 5
+offsec-ai hybrid-identity example.com -t 15 -c 5
 ```
 
 ## What It Checks
@@ -100,10 +100,10 @@ Status: ❌ Error: Connection timeout
 ## Related Commands
 ```bash
 # Full domain analysis workflow
-port-checker hybrid-identity example.com -v
-port-checker dns-trace example.com
-port-checker l7-check example.com
-port-checker cert-check adfs.example.com
+offsec-ai hybrid-identity example.com -v
+offsec-ai dns-trace example.com
+offsec-ai l7-check example.com
+offsec-ai cert-check adfs.example.com
 ```
 
 ## Documentation

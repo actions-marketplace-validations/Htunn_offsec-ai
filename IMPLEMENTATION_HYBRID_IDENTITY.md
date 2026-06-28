@@ -6,7 +6,7 @@ Successfully implemented hybrid identity and ADFS endpoint detection features fo
 ## What Was Implemented
 
 ### 1. New Core Module: `hybrid_identity_checker.py`
-**Location:** `src/simple_port_checker/core/hybrid_identity_checker.py`
+**Location:** `src/offsec_ai/core/hybrid_identity_checker.py`
 
 **Key Features:**
 - `HybridIdentityResult` class to store detection results
@@ -46,13 +46,13 @@ Successfully implemented hybrid identity and ADFS endpoint detection features fo
    - ADFS subdomain discovery
 
 ### 2. CLI Integration
-**Location:** `src/simple_port_checker/cli.py`
+**Location:** `src/offsec_ai/cli.py`
 
-**New Command:** `port-checker hybrid-identity`
+**New Command:** `offsec-ai hybrid-identity`
 
 **Options:**
 ```bash
-port-checker hybrid-identity TARGET [TARGET...] [OPTIONS]
+offsec-ai hybrid-identity TARGET [TARGET...] [OPTIONS]
 
 Options:
   -t, --timeout INTEGER           Request timeout in seconds (default: 10)
@@ -118,22 +118,22 @@ This implementation uses the **same technique as Azure Portal** to discover ADFS
 
 ### Basic Check
 ```bash
-port-checker hybrid-identity example.com
+offsec-ai hybrid-identity example.com
 ```
 
 ### Multiple Domains
 ```bash
-port-checker hybrid-identity domain1.com domain2.com domain3.com
+offsec-ai hybrid-identity domain1.com domain2.com domain3.com
 ```
 
 ### Batch Processing
 ```bash
-port-checker hybrid-identity $(cat domains.txt) --output results.json
+offsec-ai hybrid-identity $(cat domains.txt) --output results.json
 ```
 
 ### Verbose Mode
 ```bash
-port-checker hybrid-identity example.com --verbose
+offsec-ai hybrid-identity example.com --verbose
 ```
 
 ## Output Example
@@ -192,12 +192,12 @@ Timeout: 10s
 ## Files Modified/Created
 
 ### New Files
-1. `src/simple_port_checker/core/hybrid_identity_checker.py` - Core detection logic (478 lines)
+1. `src/offsec_ai/core/hybrid_identity_checker.py` - Core detection logic (478 lines)
 2. `docs/hybrid-identity.md` - Comprehensive documentation (400+ lines)
 3. `test_hybrid_identity.py` - Test script
 
 ### Modified Files
-1. `src/simple_port_checker/cli.py` - Added command and display functions
+1. `src/offsec_ai/cli.py` - Added command and display functions
 2. `README.md` - Added feature, examples, and command documentation
 
 ## Technical Details
@@ -225,22 +225,22 @@ No new dependencies required! Uses existing packages:
 ### Test with Known Domains
 ```bash
 # Microsoft domains (will have hybrid identity)
-port-checker hybrid-identity microsoft.com login.microsoftonline.com
+offsec-ai hybrid-identity microsoft.com login.microsoftonline.com
 
 # Regular domains (should not have hybrid identity)
-port-checker hybrid-identity google.com amazon.com
+offsec-ai hybrid-identity google.com amazon.com
 
 # Your organization's domains
-port-checker hybrid-identity yourcompany.com
+offsec-ai hybrid-identity yourcompany.com
 ```
 
 ### Test Error Handling
 ```bash
 # Non-existent domain
-port-checker hybrid-identity nonexistent-domain-12345.com
+offsec-ai hybrid-identity nonexistent-domain-12345.com
 
 # Invalid domain format
-port-checker hybrid-identity "not a domain"
+offsec-ai hybrid-identity "not a domain"
 ```
 
 ### Test Batch Processing
@@ -251,7 +251,7 @@ echo "google.com" >> test-domains.txt
 echo "example.com" >> test-domains.txt
 
 # Run batch check
-port-checker hybrid-identity $(cat test-domains.txt) --output results.json --verbose
+offsec-ai hybrid-identity $(cat test-domains.txt) --output results.json --verbose
 ```
 
 ## Integration with Existing Features
@@ -299,6 +299,6 @@ Possible improvements:
 
 ## Next Steps
 1. Install dependencies if needed: `pip install -e .`
-2. Test the new command: `port-checker hybrid-identity example.com`
+2. Test the new command: `offsec-ai hybrid-identity example.com`
 3. Try with your organization's domains
 4. Report any issues or enhancement requests

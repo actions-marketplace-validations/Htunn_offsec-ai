@@ -103,9 +103,9 @@ class BatchScanResult:
     def __post_init__(self):
         """Set timestamp if not provided."""
         if self.timestamp is None:
-            from datetime import datetime
+            from datetime import datetime, timezone
 
-            self.timestamp = datetime.utcnow().isoformat()
+            self.timestamp = datetime.now(timezone.utc).isoformat()
 
     @property
     def successful_scans(self) -> List[ScanResult]:

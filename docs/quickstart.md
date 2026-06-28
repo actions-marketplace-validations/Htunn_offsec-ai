@@ -1,9 +1,9 @@
-# Simple Port Checker - Quick Start Guide
+# offsec-ai — Quick Start Guide
 
 ## Installation
 
 ```bash
-pip install simple-port-checker
+pip install offsec-ai
 ```
 
 ## Basic Usage
@@ -11,52 +11,75 @@ pip install simple-port-checker
 ### Command Line
 
 ```bash
-# Basic port scan
-port-checker scan example.com
+# Infrastructure scanning
+offsec-ai scan example.com
+offsec-ai scan example.com --ports 80,443,8080
+offsec-ai l7-check example.com
+offsec-ai full-scan example.com --output results.json
+offsec-ai cert-check example.com
+offsec-ai mtls-check example.com
 
-# Scan specific ports
-port-checker scan example.com --ports 80,443,8080
+# AI / LLM OWASP Top 10 black-box scanner
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions
+offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions \
+    --api-key "$MY_KEY" --llm-judge
 
-# Check L7 protection
-port-checker l7-check example.com
+# MCP endpoint security scanner (passive)
+offsec-ai mcp-scan https://mcp.example.com/mcp
+offsec-ai mcp-scan https://mcp.example.com/mcp --output report.json
 
-# Full scan
-port-checker full-scan example.com --output results.json
+# MCP attacker (requires --authorized flag)
+offsec-ai mcp-attack https://mcp.example.com/mcp --authorized \
+    --auth-token "$TOKEN"
 ```
 
 ### Python API
 
 ```python
 import asyncio
-from simple_port_checker import PortChecker, L7Detector
+from offsec_ai import (
+    PortChecker, L7Detector, CertificateAnalyzer, MTLSChecker,
+    LLMOwaspScanner, MCPScanner, MCPAttacker, LLMJudge,
+)
 
 async def main():
-    # Port scanning
+    # Infrastructure: port scanning
     scanner = PortChecker()
     result = await scanner.scan_host("example.com", [80, 443, 22])
-    
     print(f"Open ports: {[p.port for p in result.open_ports]}")
-    
-    # L7 protection detection
+
+    # L7 / WAF detection
     detector = L7Detector()
-    l7_result = await detector.detect("example.com")
-    
-    if l7_result.is_protected:
-        protection = l7_result.primary_protection
-        print(f"Protection: {protection.service.value} ({protection.confidence:.1%})")
+    l7 = await detector.detect("example.com")
+    if l7.is_protected:
+        print(f"WAF/CDN: {l7.primary_protection.service.value}")
+
+    # AI / LLM OWASP Top 10 scanner
+    llm_scanner = LLMOwaspScanner(
+        endpoint="https://api.example.com/v1/chat/completions",
+        api_key="sk-...",
+    )
+    report = await llm_scanner.scan()
+    print(f"LLM findings: {len(report.findings)}")
+
+    # MCP security scan (passive)
+    mcp = MCPScanner("https://mcp.example.com/mcp")
+    mcp_result = await mcp.scan()
+    print(f"MCP tools exposed: {len(mcp_result.tools)}")
+    print(f"Auth required: {mcp_result.auth_posture.requires_auth}")
 
 asyncio.run(main())
 ```
 
 ## Configuration
 
-Create `~/.port-checker.yaml`:
+Create `~/.offsec-ai.yaml`:
 
 ```yaml
 default_ports: [80, 443, 8080, 8443, 22, 21, 25, 53]
 timeout: 5
 concurrent_limit: 50
-user_agent: "SimplePortChecker/1.0"
+user_agent: "offsec-ai/2.0.0"
 ```
 
 ## Advanced Features
@@ -90,7 +113,7 @@ print(f"WAF detected: {waf_results['waf_detected']}")
 ### JSON Output
 
 ```bash
-port-checker scan example.com --output scan_results.json
+offsec-ai scan example.com --output scan_results.json
 ```
 
 ### Programmatic Access
@@ -126,19 +149,19 @@ json_str = result.to_json(indent=2)
 2. **Connection Timeouts**
    ```bash
    # Increase timeout
-   port-checker scan example.com --timeout 10
+   offsec-ai scan example.com --timeout 10
    ```
 
 3. **Rate Limiting**
    ```bash
    # Reduce concurrency
-   port-checker scan example.com --concurrent 10
+   offsec-ai scan example.com --concurrent 10
    ```
 
 ### Debug Mode
 
 ```bash
-port-checker scan example.com --verbose
+offsec-ai scan example.com --verbose
 ```
 
 ## Examples

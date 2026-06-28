@@ -4,8 +4,8 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch, Mock
 
-from simple_port_checker.core.port_scanner import PortChecker, ScanConfig
-from simple_port_checker.models.scan_result import PortResult, ScanResult
+from offsec_ai.core.port_scanner import PortChecker, ScanConfig
+from offsec_ai.models.scan_result import PortResult, ScanResult
 
 
 class TestPortChecker:

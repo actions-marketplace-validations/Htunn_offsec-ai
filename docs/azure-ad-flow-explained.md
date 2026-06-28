@@ -162,7 +162,7 @@ Our tool checks **both APIs** for maximum compatibility!
 ### Test with Microsoft's Own Domain
 
 ```bash
-port-checker hybrid-identity microsoft.com
+offsec-ai hybrid-identity microsoft.com
 ```
 
 Expected Result:
@@ -180,7 +180,7 @@ Expected Result:
 ### Test with Google (No Federation)
 
 ```bash
-port-checker hybrid-identity google.com
+offsec-ai hybrid-identity google.com
 ```
 
 Expected Result:

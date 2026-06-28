@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-06-29
+
+### Added — AI / LLM Security (fresh start as `offsec-ai`)
+
+This release renames the package from `simple-port-checker` to `offsec-ai` and introduces comprehensive AI/LLM security capabilities.
+
+- **🤖 AI OWASP Top 10 Scanner** (`offsec_ai.core.ai_owasp_scanner.LLMOwaspScanner`)
+  - Black-box probing of live LLM/chat API endpoints (OpenAI-compatible and generic formats)
+  - Covers LLM01–LLM10 where externally testable (LLM03, LLM04, LLM08 marked not-testable)
+  - Safe mode (passive) and deep mode (all probes)
+  - Severity-based grading (A–F); CRITICAL finding auto-assigns F grade
+  - Batch scanning via `batch_scan()`
+  - CLI command: `offsec-ai ai-owasp-scan`
+
+- **🔬 LLM Judge** (`offsec_ai.core.llm_judge.LLMJudge`)
+  - Optional semantic evaluation of probe responses via OpenAI or Anthropic
+  - Auto-detected from `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OFFSEC_LLM_BASE_URL`
+  - Falls back to rule-based detection when no API key is present
+  - Enabled via `pip install "offsec-ai[ai]"` optional extra
+
+- **🔌 MCP Security Scanner** (`offsec_ai.core.mcp_scanner.MCPScanner`)
+  - Scans Model Context Protocol servers over HTTP/SSE and stdio transports
+  - Enumerates tools, resources, and prompts via JSON-RPC
+  - Auth posture detection (unauthenticated vs authenticated access)
+  - Built-in CVE database: tool poisoning, path traversal, command injection, secrets in descriptions, excessive agency, prompt injection via tool response, rug-pull/tool shadowing
+  - CLI command: `offsec-ai mcp-scan`
+
+- **⚔️ MCP Attacker** (`offsec_ai.core.mcp_attacker.MCPAttacker`)
+  - Active attack suite: auth bypass, path traversal, tool injection, command injection
+  - Hard authorization gate: `MCPAttacker(authorized=False)` raises `AuthorizationRequired`
+  - `--i-have-authorization` flag required at CLI; prints legal banner on every run
+  - Safe mode (auth bypass only) and deep mode (all attacks)
+  - CLI command: `offsec-ai mcp-attack`
+
+- **New models**: `LLMScanResult`, `LLMFinding`, `LLMCategoryResult`, `LLMSeverity`, `LLMScanMode`, `BatchLLMScanResult`, `MCPScanResult`, `MCPTool`, `MCPResource`, `MCPVulnerability`, `MCPAttackReport`, `MCPAttackResult`, `MCPTransport`, `MCPVulnSeverity`, `AuthorizationRequired`
+
+- **New utilities**: `ai_owasp_payloads.py`, `ai_owasp_remediation.py`, `mcp_cve_db.py`, `mcp_payloads.py`
+
+### Changed
+
+- Package renamed: `simple-port-checker` → `offsec-ai` (PyPI), `simple_port_checker` → `offsec_ai` (import)
+- CLI entry point renamed: `offsec-ai` (removed legacy `port-checker`, `simple-port-checker` aliases)
+- Version bumped to `2.0.0` (continues from `simple-port-checker` v1.1.2 — major version for complete rebrand)
+- Requires Python 3.12+
+- Added `mcp>=1.0.0` and `httpx>=0.25.0` as core dependencies
+
+### Migration from `simple-port-checker`
+
+```python
+# Before
+from simple_port_checker import PortChecker
+
+# After
+from offsec_ai import PortChecker
+```
+
+```bash
+# Before
+pip install simple-port-checker
+simple-port-checker scan example.com
+
+# After
+pip install offsec-ai
+offsec-ai scan example.com
+```
+
+All existing functionality (port scanning, L7 detection, mTLS, certificate analysis, OWASP web scanner, hybrid identity) is preserved and works identically.
+
+---
+
 ## [1.1.2] - 2026-01-23
 
 ### Added
@@ -200,7 +270,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Major Refactoring and Cleanup
 - **BREAKING**: Removed standalone scripts directory and integrated all functionality into main CLI
 - **BREAKING**: Moved all tests to top-level `tests/` directory following Python packaging standards
-- **BREAKING**: Removed `run.py` entry point (use `python -m simple_port_checker` or installed CLI commands)
+- **BREAKING**: Removed `run.py` entry point (use `python -m offsec_ai` or installed CLI commands)
 
 ### Added
 - Unified CLI interface with all functionality accessible via main commands
@@ -210,7 +280,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Production-ready project structure following Python packaging best practices
 
 ### Improved
-- Clean and consistent project organization under `src/simple_port_checker/`
+- Clean and consistent project organization under `src/offsec_ai/`
 - Better error handling in DNS trace functionality
 - Fixed undefined variable issues in L7 detector
 - Updated documentation and project structure guide
@@ -223,7 +293,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Duplicate test directories cleanup
 
 ### Removed
-- `src/simple_port_checker/scripts/` directory (functionality moved to main CLI)
+- `src/offsec_ai/scripts/` directory (functionality moved to main CLI)
 - `run.py` standalone entry point
 - Unnecessary script entry points from pyproject.toml
 - Duplicate and outdated test files
@@ -490,5 +560,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - cryptography: For certificate handling
 - certifi: For CA bundle management
 
-[Unreleased]: https://github.com/yourusername/simple-port-checker/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/yourusername/simple-port-checker/releases/tag/v0.1.0
+[Unreleased]: https://github.com/htunn/offsec-ai/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/htunn/offsec-ai/releases/tag/v2.0.0

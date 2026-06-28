@@ -7,9 +7,9 @@ The Python script files have been properly organized under the `src` directory s
 ### Final Project Structure:
 
 ```
-/Users/htunn/code/AI/simple-port-checker/
+/Users/htunn/code/AI/offsec-ai/
 ├── src/
-│   └── simple_port_checker/
+│   └── offsec_ai/
 │       ├── __init__.py              # Package initialization
 │       ├── __main__.py              # Module entry point
 │       ├── cli.py                   # Main CLI with all commands
@@ -32,7 +32,7 @@ The Python script files have been properly organized under the `src` directory s
 ### Key Changes Made:
 
 1. **Removed Standalone Scripts**: Eliminated the `scripts/` directory and integrated all functionality into the main CLI.
-2. **Removed run.py**: The standalone entry script was unnecessary since the package can be run as a module via `python -m simple_port_checker`.
+2. **Removed run.py**: The standalone entry script was unnecessary since the package can be run as a module via `python -m offsec_ai`.
 
 2. **Enhanced Core Modules**: 
    - Added `get_dns_trace()` method to `L7Detector` class
@@ -52,46 +52,46 @@ The Python script files have been properly organized under the `src` directory s
 
 ```bash
 # DNS trace analysis
-python -m simple_port_checker dns-trace domain.com --check-protection --verbose
+python -m offsec_ai dns-trace domain.com --check-protection --verbose
 
 # L7 protection check with DNS trace
-python -m simple_port_checker l7-check domain.com --trace-dns --verbose
+python -m offsec_ai l7-check domain.com --trace-dns --verbose
 
 # Full security scan
-python -m simple_port_checker full-scan domain.com --verbose
+python -m offsec_ai full-scan domain.com --verbose
 
 # Port scanning
-python -m simple_port_checker scan domain.com --top-ports
+python -m offsec_ai scan domain.com --top-ports
 
 # Service detection
-python -m simple_port_checker service-detect domain.com --port 443
+python -m offsec_ai service-detect domain.com --port 443
 ```
 
 ### Usage Methods:
 
 1. **As a Python Module** (recommended for development):
    ```bash
-   python -m simple_port_checker [command] [options]
+   python -m offsec_ai [command] [options]
    ```
 
 2. **After Installation** (for production use):
    ```bash
    pip install -e .  # Install in development mode
-   port-checker [command] [options]
+   offsec-ai [command] [options]
    # or
-   simple-port-checker [command] [options]
+   offsec-ai [command] [options]
    ```
 
 3. **In Virtual Environment**:
    ```bash
    source .venv/bin/activate  # On Unix/macOS
-   python -m simple_port_checker [command] [options]
+   python -m offsec_ai [command] [options]
    ```
 
 ### Benefits of This Organization:
 
 1. **No Standalone Scripts**: Everything is integrated into the main package
-2. **Standard Python Module**: Can be run using `python -m simple_port_checker`
+2. **Standard Python Module**: Can be run using `python -m offsec_ai`
 3. **Proper Entry Points**: Installable with standard pip commands
 4. **Modular Design**: Functionality is properly separated into core, models, and utils
 5. **Easy Maintenance**: All related code is in appropriate modules

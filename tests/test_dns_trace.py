@@ -7,7 +7,7 @@ import asyncio
 import dns.resolver
 import json
 
-from simple_port_checker.core.l7_detector import L7Detector
+from offsec_ai.core.l7_detector import L7Detector
 
 async def main():
     """Run DNS trace tests."""

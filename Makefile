@@ -37,7 +37,7 @@ test:
 	pytest tests/ -v
 
 test-cov:
-	pytest tests/ -v --cov=src/simple_port_checker --cov-report=html --cov-report=term
+	pytest tests/ -v --cov=src/offsec_ai --cov-report=html --cov-report=term
 
 lint:
 	flake8 src/ tests/ examples/
@@ -94,26 +94,26 @@ example:
 
 # CLI help
 cli-help:
-	port-checker --help
+	offsec-ai --help
 
 # Docker commands
 # Docker commands
 docker-build:  ## Build Docker image
-	docker build -t simple-port-checker:latest .
+	docker build -t offsec-ai:latest .
 
 docker-build-no-cache:  ## Build Docker image without cache
-	docker build --no-cache -t simple-port-checker:latest .
+	docker build --no-cache -t offsec-ai:latest .
 
 docker-run:  ## Run Docker container with help
-	docker run --rm simple-port-checker:latest --help
+	docker run --rm offsec-ai:latest --help
 
 docker-test:  ## Test Docker container
-	docker run --rm simple-port-checker:latest --help
-	docker run --rm simple-port-checker:latest --version
+	docker run --rm offsec-ai:latest --help
+	docker run --rm offsec-ai:latest --version
 
 docker-scan:  ## Run vulnerability scan on Docker image
 	@command -v trivy >/dev/null 2>&1 || { echo "trivy is required for security scanning. Install from https://trivy.dev/"; exit 1; }
-	trivy image simple-port-checker:latest
+	trivy image offsec-ai:latest
 
 docker-clean:  ## Clean Docker artifacts
 	docker system prune -f
@@ -121,4 +121,4 @@ docker-clean:  ## Clean Docker artifacts
 
 # Docker multi-arch build (requires buildx)
 docker-build-multi:  ## Build multi-architecture image
-	docker buildx build --platform linux/amd64,linux/arm64 -t simple-port-checker:latest .
+	docker buildx build --platform linux/amd64,linux/arm64 -t offsec-ai:latest .
