@@ -125,7 +125,7 @@ docker-build-multi:  ## Build multi-architecture image
 
 # Docker push to Docker Hub
 # Usage: make docker-push DOCKER_USERNAME=youruser
-DOCKER_USERNAME ?= htunn
+DOCKER_USERNAME ?= htunnthuthu
 DOCKER_VERSION := $(shell python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
 
 docker-push: docker-build  ## Build and push image to Docker Hub

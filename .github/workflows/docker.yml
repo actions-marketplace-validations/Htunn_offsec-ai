@@ -64,7 +64,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=offsec-ai
             org.opencontainers.image.description=Offensive-security toolkit: port scanning, L7/WAF detection, mTLS, certificate analysis, OWASP Top 10, AI/LLM OWASP Top 10 black-box probing, and MCP endpoint security scanning
-            org.opencontainers.image.vendor=htunn
+            org.opencontainers.image.vendor=htunnthuthu
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.source=${{ github.repositoryUrl }}
