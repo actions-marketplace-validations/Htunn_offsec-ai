@@ -55,7 +55,7 @@ class L7Detector:
             user_agent: Custom User-Agent string
         """
         self.timeout = timeout
-        self.user_agent = user_agent or "SimplePortChecker/1.0 (Security Scanner)"
+        self.user_agent = user_agent or "offsec-ai/2.0 (Security Scanner)"
         self.signatures = L7_SIGNATURES
 
     async def detect(self, host: str, port: int = None, path: str = "/", trace_dns: bool = False) -> L7Result:

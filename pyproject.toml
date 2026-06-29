@@ -4,16 +4,18 @@ build-backend = "hatchling.build"
 
 [project]
 name = "offsec-ai"
-version = "2.0.1"
+version = "2.0.2"
 description = "Offensive-security toolkit: port scanning, L7/WAF detection, mTLS, certificate analysis, OWASP Top 10, AI/LLM OWASP Top 10 black-box probing, and MCP endpoint security scanning"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
-    {name = "htunn", email = "htunnthuthu.linux@gmail.com"}
+    {name = "Htunn"},
+    {email = "htunnthuthu.linux@gmail.com"}
 ]
 maintainers = [
-    {name = "htunn", email = "htunnthuthu.linux@gmail.com"}
+    {name = "Htunn"},
+    {email = "htunnthuthu.linux@gmail.com"}
 ]
 keywords = ["firewall", "port-scanner", "l7-protection", "waf", "network", "security", "ssl", "tls", "certificate", "certificate-analysis", "pki", "offensive-security", "red-team", "pentest", "ai", "llm", "mcp", "owasp", "ai-security", "model-context-protocol"]
 classifiers = [
@@ -46,6 +48,7 @@ dependencies = [
     "cryptography>=41.0.0",
     "mcp>=1.0.0",
     "httpx>=0.25.0",
+    "reportlab>=4.0.0",
 ]
 
 [project.optional-dependencies]

@@ -91,7 +91,7 @@ class HybridIdentityChecker:
             timeout: Request timeout in seconds
         """
         self.timeout = timeout
-        self.user_agent = "SimplePortChecker/1.0 (Hybrid Identity Scanner)"
+        self.user_agent = "offsec-ai/2.0 (Hybrid Identity Scanner)"
     
     async def check(self, fqdn: str) -> HybridIdentityResult:
         """

@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   IMAGE_NAME: offsec-ai
@@ -29,7 +29,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Extract version from pyproject.toml
         id: version
@@ -62,8 +62,8 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ steps.version.outputs.version }},enable={{is_default_branch}}
           labels: |
-            org.opencontainers.image.title=Simple Port Checker
-            org.opencontainers.image.description=A comprehensive tool for checking firewall ports and L7 protection services
+            org.opencontainers.image.title=offsec-ai
+            org.opencontainers.image.description=Offensive-security toolkit: port scanning, L7/WAF detection, mTLS, certificate analysis, OWASP Top 10, AI/LLM OWASP Top 10 black-box probing, and MCP endpoint security scanning
             org.opencontainers.image.vendor=htunn
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
@@ -80,8 +80,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            VERSION=${{ steps.version.outputs.version }}
 
       - name: Test Docker image (local build)
         if: github.event_name == 'pull_request'
@@ -103,18 +101,18 @@ jobs:
     environment: pypi
     needs: build
     if: github.event_name != 'pull_request'
-    
+
     steps:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests
-      
+
       - name: Extract version from previous job
         id: version
         run: |
@@ -178,7 +176,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -186,11 +184,11 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ vars.DOCKER_USERNAME }}/${{ vars.IMAGE_NAME }}:latest
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          format: "sarif"
+          output: "trivy-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: "trivy-results.sarif"

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-06-29
+
+### Changed
+- README logo replaced with inline ASCII art (no external image dependency)
+- User-Agent strings updated from `SimplePortChecker/1.0` to `offsec-ai/2.0` in `L7Detector` and `HybridIdentityChecker`
+- `reportlab>=4.0.0` promoted to core dependency in `pyproject.toml` (was missing, caused `ModuleNotFoundError` on fresh installs)
+- Docker image now installs `[ai]` extras (`openai`, `anthropic`) so LLM judge works at runtime via env vars
+- Dockerfile redundant pre-installs removed; `pip install ".[ai]"` is now the single install step
+- `docker-push` and `docker-release` Makefile targets added with auto-versioning from `pyproject.toml`
+- CI/CD: `docker.yml` image labels updated (title, description); unused `build-args` removed
+- CI/CD: `publish.yml` PyPI environment URL no longer pins a hardcoded version
+- Stale files removed: `PROJECT_STRUCTURE.md`, `HYBRID_IDENTITY_QUICKREF.md`, `IMPLEMENTATION_HYBRID_IDENTITY.md`, `MANIFEST.in`, empty `scripts/` dir
+- `tests/test_dns_trace.py` removed (was a live-network script, not a pytest test)
+- `tests/test_mtls.py` and `tests/test_mtls_integration.py` rewritten as proper `assert`-based pytest tests
+- `setup_dev.sh` updated: branding, venv path (`.venv`), and `[ai]` extras
+
 ## [2.0.0] - 2026-06-29
 
 ### Added — AI / LLM Security (fresh start as `offsec-ai`)

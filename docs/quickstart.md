@@ -28,9 +28,8 @@ offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions \
 offsec-ai mcp-scan https://mcp.example.com/mcp
 offsec-ai mcp-scan https://mcp.example.com/mcp --output report.json
 
-# MCP attacker (requires --authorized flag)
-offsec-ai mcp-attack https://mcp.example.com/mcp --authorized \
-    --auth-token "$TOKEN"
+# MCP attacker (requires --i-have-authorization flag)
+offsec-ai mcp-attack https://mcp.example.com/mcp --i-have-authorization
 ```
 
 ### Python API
@@ -167,6 +166,7 @@ offsec-ai scan example.com --verbose
 ## Examples
 
 See the `examples/` directory for complete usage examples:
-- `usage_examples.py` - Comprehensive examples
-- `batch_scanning.py` - Batch scanning multiple targets
-- `custom_config.py` - Custom configuration examples
+- `usage_examples.py` — Core infrastructure scanning examples
+- `comprehensive_examples.py` — All features with detailed output
+- `mtls_examples.py` — mTLS testing and certificate generation
+- `owasp_scan_examples.py` — OWASP Top 10 scanning with PDF/CSV export

@@ -260,9 +260,73 @@ spec:
 - ✅ OCSP and CRL URL extraction for revocation checking
 - ✅ Certificate fingerprint generation (SHA-1, SHA-256)
 
-## �🔧 Configuration & Environment
+## 🤖 AI / LLM Security Usage
 
-### Environment Variables
+The image ships with `openai` and `anthropic` pre-installed (`[ai]` extra). Pass an API key at runtime to enable the **LLM Judge** for smarter semantic vulnerability detection.
+
+### AI OWASP Top 10 Scan (rule-based, no key required)
+```bash
+docker run --rm htunnthuthu/offsec-ai:latest \
+  ai-owasp-scan https://api.example.com/v1/chat/completions
+```
+
+### AI OWASP Top 10 Scan with LLM Judge
+
+```bash
+# OpenAI judge
+docker run --rm \
+  -e OPENAI_API_KEY=sk-... \
+  htunnthuthu/offsec-ai:latest \
+  ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
+
+# Anthropic judge
+docker run --rm \
+  -e ANTHROPIC_API_KEY=sk-ant-... \
+  htunnthuthu/offsec-ai:latest \
+  ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
+
+# Google Gemini judge (no extra package needed)
+docker run --rm \
+  -e GEMINI_API_KEY=AIzaSy... \
+  htunnthuthu/offsec-ai:latest \
+  ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
+
+# Custom OpenAI-compatible endpoint (Ollama, LM Studio, Azure OpenAI, etc.)
+docker run --rm \
+  -e OFFSEC_LLM_BASE_URL=http://host.docker.internal:11434/v1 \
+  -e OFFSEC_LLM_MODEL=llama3 \
+  htunnthuthu/offsec-ai:latest \
+  ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
+```
+
+### MCP Security Scan
+```bash
+# Scan an MCP endpoint
+docker run --rm htunnthuthu/offsec-ai:latest \
+  mcp-scan https://mcp.example.com/mcp
+
+# Active MCP attack (requires authorization flag)
+docker run --rm htunnthuthu/offsec-ai:latest \
+  mcp-attack https://mcp.example.com/mcp --i-have-authorization --mode deep
+```
+
+---
+
+## 🔧 Configuration & Environment
+
+### LLM / AI Judge Environment Variables
+
+| Variable | Provider | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | OpenAI | Enables OpenAI judge (e.g. `gpt-4o-mini`) |
+| `ANTHROPIC_API_KEY` | Anthropic | Enables Anthropic judge (e.g. `claude-3-haiku`) |
+| `GEMINI_API_KEY` | Google | Enables Gemini judge (e.g. `gemini-1.5-flash`) |
+| `OFFSEC_LLM_BASE_URL` | Any OpenAI-compatible | Use a custom/local endpoint as the judge backend |
+| `OFFSEC_LLM_MODEL` | All | Override the default model name |
+
+Provider is **auto-detected** from whichever key is set; `OFFSEC_LLM_BASE_URL` takes precedence over `OPENAI_API_KEY`.
+
+### General Environment Variables
 ```bash
 # Set timeout for operations
 docker run --rm -e TIMEOUT=30 htunnthuthu/offsec-ai:latest scan example.com
@@ -294,12 +358,12 @@ docker run --rm -v /host/certs:/app/certs \
 ## 🔒 Security Features
 
 ### Non-Root User
-- ✅ Container runs as non-root user `scanner` (UID: 1000)
+- ✅ Container runs as non-root user `appuser` (UID: 1000)
 - ✅ No privileged access required
 - ✅ Minimal attack surface
 
 ### Minimal Dependencies
-- ✅ Based on Alpine Linux for small footprint
+- ✅ Based on Debian slim for minimal footprint
 - ✅ Only essential packages included
 - ✅ Regular security updates via automated builds
 
@@ -311,17 +375,18 @@ docker run --rm -v /host/certs:/app/certs \
 ## 🏷️ Image Specifications
 
 ### Base Image
-- **OS**: Alpine Linux (latest stable)
+- **OS**: Debian GNU/Linux 12 Bookworm slim (`python:3.12-slim-bookworm`)
 - **Python**: 3.12+
 - **Architecture**: Multi-arch (AMD64, ARM64)
-- **User**: Non-root (`scanner:scanner`)
+- **User**: Non-root (`appuser:appuser`, UID/GID 1000)
 
 ### Installed Tools
-- ✅ Simple Port Checker (latest version)
+- ✅ `offsec-ai` (latest version)
 - ✅ Python runtime and required dependencies
+- ✅ `openai` & `anthropic` packages — bundled via `[ai]` extra; LLM judge activates automatically when you pass an API key env var
 - ✅ SSL/TLS libraries for certificate handling
 - ✅ DNS resolution utilities
-- ✅ OpenSSL for certificate chain extraction
+- ✅ `nmap` for port scanning
 - ✅ Cryptography libraries for certificate analysis
 
 ### Performance
@@ -430,7 +495,42 @@ docker run --rm --memory=512m htunnthuthu/offsec-ai:latest scan example.com
 docker run --rm --cpus=2 htunnthuthu/offsec-ai:latest full-scan example.com
 ```
 
-## 🔗 Related Links
+## �️ Building & Publishing Locally
+
+The `Makefile` provides convenience targets for building and pushing to Docker Hub.
+
+```bash
+# Build the image locally
+make docker-build
+
+# Build without cache
+make docker-build-no-cache
+
+# Build multi-arch (linux/amd64 + linux/arm64) — requires docker buildx
+make docker-build-multi
+
+# Push to Docker Hub (builds first, then tags + pushes :version and :latest)
+make docker-push                              # uses DOCKER_USERNAME=htunn by default
+make docker-push DOCKER_USERNAME=youruser     # override username
+
+# Full release in one command
+make docker-release                           # equivalent to docker-build + docker-push
+
+# Test the local image
+make docker-test
+
+# Scan image for vulnerabilities (requires trivy)
+make docker-scan
+
+# Clean up local Docker artifacts
+make docker-clean
+```
+
+The `DOCKER_VERSION` is read automatically from `pyproject.toml`, so the published tags match the package version exactly.
+
+---
+
+## �🔗 Related Links
 
 - **GitHub Repository**: [Htunn/offsec-ai](https://github.com/Htunn/offsec-ai)
 - **PyPI Package**: [offsec-ai](https://pypi.org/project/offsec-ai/)

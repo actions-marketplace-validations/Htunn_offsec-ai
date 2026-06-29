@@ -122,3 +122,16 @@ docker-clean:  ## Clean Docker artifacts
 # Docker multi-arch build (requires buildx)
 docker-build-multi:  ## Build multi-architecture image
 	docker buildx build --platform linux/amd64,linux/arm64 -t offsec-ai:latest .
+
+# Docker push to Docker Hub
+# Usage: make docker-push DOCKER_USERNAME=youruser
+DOCKER_USERNAME ?= htunn
+DOCKER_VERSION := $(shell python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+
+docker-push: docker-build  ## Build and push image to Docker Hub
+	docker tag offsec-ai:latest $(DOCKER_USERNAME)/offsec-ai:$(DOCKER_VERSION)
+	docker tag offsec-ai:latest $(DOCKER_USERNAME)/offsec-ai:latest
+	docker push $(DOCKER_USERNAME)/offsec-ai:$(DOCKER_VERSION)
+	docker push $(DOCKER_USERNAME)/offsec-ai:latest
+
+docker-release: docker-push  ## Full release: build → tag → push to Docker Hub

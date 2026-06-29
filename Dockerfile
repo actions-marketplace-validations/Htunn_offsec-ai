@@ -4,7 +4,7 @@ FROM python:3.12-slim-bookworm
 # Set metadata
 LABEL maintainer="htunn <htunnthuthu.linux@gmail.com>"
 LABEL description="A comprehensive tool for checking firewall ports, L7 protection services, SSL/TLS certificate analysis, and OWASP Top 10 vulnerability scanning"
-LABEL version="1.1.2"
+LABEL version="2.0.2"
 LABEL org.opencontainers.image.source="https://github.com/htunn/offsec-ai"
 LABEL org.opencontainers.image.documentation="https://github.com/htunn/offsec-ai#readme"
 LABEL org.opencontainers.image.licenses="MIT"
@@ -20,9 +20,9 @@ RUN groupadd --gid 1000 appuser && \
     useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        nmap \
-        ca-certificates \
-        && \
+    nmap \
+    ca-certificates \
+    && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -33,10 +33,11 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src/ ./src/
 
-# Install the application with OWASP dependencies and change ownership
+# Install the application with all dependencies
+# [ai] extra installs openai and anthropic so the LLM judge works at runtime
+# when OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY is passed via env.
 RUN pip install --upgrade pip && \
-    pip install httpx>=0.25.0 reportlab>=4.0.0 && \
-    pip install . && \
+    pip install ".[ai]" && \
     chown -R appuser:appuser /app
 
 # Switch to non-root user

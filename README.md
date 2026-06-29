@@ -1,6 +1,12 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Htunn/offsec-ai/main/docs/assets/logo.svg" alt="offsec-ai" width="520"/>
-</p>
+```
+  ██████╗ ███████╗███████╗███████╗███████╗ ██████╗       █████╗ ██╗
+ ██╔═══██╗██╔════╝██╔════╝██╔════╝██╔════╝██╔════╝      ██╔══██╗██║
+ ██║   ██║█████╗  █████╗  ███████╗█████╗  ██║     █████╗███████║██║
+ ██║   ██║██╔══╝  ██╔══╝  ╚════██║██╔══╝  ██║     ╚════╝██╔══██║██║
+ ╚██████╔╝██║     ██║     ███████║███████╗╚██████╗       ██║  ██║██║
+  ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚══════╝ ╚═════╝       ╚═╝  ╚═╝╚═╝
+  Offensive-Security Toolkit · AI/LLM · MCP · Red-Team
+```
 
 <p align="center">
   <a href="https://pypi.org/project/offsec-ai/"><img src="https://img.shields.io/pypi/v/offsec-ai" alt="PyPI Version"/></a>
@@ -496,7 +502,22 @@ docker run --rm htunnthuthu/offsec-ai:latest owasp-scan example.com
 docker run --rm -v $(pwd):/app/output htunnthuthu/offsec-ai:latest \
   ai-owasp-scan https://api.example.com/v1/chat/completions \
   --output /app/output/llm-report.json
+
+# LLM Judge — openai, anthropic, or gemini key auto-detected; no extra install needed
+docker run --rm \
+  -e OPENAI_API_KEY=sk-... \
+  htunnthuthu/offsec-ai:latest \
+  ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
+
+# Custom OpenAI-compatible backend (Ollama, LM Studio, Azure OpenAI…)
+docker run --rm \
+  -e OFFSEC_LLM_BASE_URL=http://host.docker.internal:11434/v1 \
+  -e OFFSEC_LLM_MODEL=llama3 \
+  htunnthuthu/offsec-ai:latest \
+  ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
 ```
+
+See [docs/DOCKER.md](docs/DOCKER.md) for the full Docker reference including CI/CD integration, Kubernetes jobs, Makefile publish targets, and troubleshooting.
 
 ---
 
