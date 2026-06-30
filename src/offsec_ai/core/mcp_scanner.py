@@ -55,20 +55,23 @@ class MCPScanner:
         cmd: list[str] | None = None,
         headers: dict[str, str] | None = None,
         timeout: float = 15.0,
+        verify_tls: bool = True,
     ) -> None:
         """
         Args:
-            target:    URL for HTTP/SSE transport, or 'stdio://...' for stdio.
-            transport: "http", "sse", or "stdio".
-            cmd:       Command list for stdio transport, e.g. ["python", "server.py"].
-            headers:   Extra HTTP headers (e.g. Authorization).
-            timeout:   Per-request timeout in seconds.
+            target:     URL for HTTP/SSE transport, or 'stdio://...' for stdio.
+            transport:  "http", "sse", or "stdio".
+            cmd:        Command list for stdio transport, e.g. ["python", "server.py"].
+            headers:    Extra HTTP headers (e.g. Authorization).
+            timeout:    Per-request timeout in seconds.
+            verify_tls: Verify TLS certificates. Set False for self-signed certs.
         """
         self.target = target
         self.transport = MCPTransport(transport)
         self.cmd = cmd or []
         self.headers = headers or {}
         self.timeout = timeout
+        self.verify_tls = verify_tls
 
     # ------------------------------------------------------------------
     # Public API
@@ -102,6 +105,7 @@ class MCPScanner:
             },
             timeout=self.timeout,
             trust_env=False,
+            verify=self.verify_tls,  # noqa: S501 — intentional for security scanning
         ) as client:
             # 1. Initialize handshake
             server_info, init_error = await self._initialize_http(client)

@@ -2519,11 +2519,13 @@ def _display_ai_owasp_result(result: LLMScanResult) -> None:
 @click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE",
               help="Extra HTTP headers.")
 @click.option("--timeout", default=15.0, show_default=True, help="Request timeout (seconds).")
+@click.option("--no-tls-verify", "no_tls_verify", is_flag=True, default=False,
+              help="Disable TLS certificate verification (for self-signed certs).")
 @click.option("--format", "output_format", type=click.Choice(["console", "json"]),
               default="console", show_default=True)
 @click.option("--output", "-o", type=click.Path(), default=None,
               help="Save JSON result to file.")
-def mcp_scan(target, transport, cmd, extra_headers, timeout, output_format, output):
+def mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_verify, output_format, output):
     """Scan an MCP (Model Context Protocol) endpoint for security vulnerabilities and CVEs.
 
     TARGET is the MCP endpoint URL (HTTP/SSE) or 'stdio://local' for a local server.
@@ -2535,11 +2537,12 @@ def mcp_scan(target, transport, cmd, extra_headers, timeout, output_format, outp
     asyncio.run(_run_mcp_scan(
         target=target, transport=transport, cmd=list(cmd),
         extra_headers=list(extra_headers), timeout=timeout,
+        no_tls_verify=no_tls_verify,
         output_format=output_format, output=output,
     ))
 
 
-async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, output_format, output):
+async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_verify, output_format, output):
     headers = {}
     for h in extra_headers:
         if ":" in h:
@@ -2552,6 +2555,7 @@ async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, output_f
         cmd=cmd,
         headers=headers,
         timeout=timeout,
+        verify_tls=not no_tls_verify,
     )
 
     with Progress(
