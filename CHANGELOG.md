@@ -5,6 +5,105 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-06-30
+
+### Added — AI/LLM Attack Expansion (Track A)
+
+- **🗡️ Jailbreak Technique Library** (`offsec_ai.utils.llm_jailbreaks`)
+  - DAN (Do Anything Now) variants, developer-mode bypass, roleplay/persona injection,
+    refusal-suppression patterns, hypothetical framing, payload-splitting
+  - Each technique carries OWASP LLM category refs, expected severity, and response detection strings
+  - Constants: `DAN_TECHNIQUES`, `ROLEPLAY_TECHNIQUES`, `REFUSAL_SUPPRESSION_TECHNIQUES`,
+    `HYPOTHETICAL_TECHNIQUES`, `PAYLOAD_SPLITTING_TECHNIQUES`, `JAILBREAK_TECHNIQUES` (combined)
+
+- **🔠 Encoding/Obfuscation Bypass Engine** (`offsec_ai.utils.llm_encoders`)
+  - Encodes payloads in base64, ROT-13, leetspeak, hex, reversed text, homoglyph, zero-width Unicode
+  - `encode(payload, method)` — encode a string in the given representation
+  - `wrap(payload, method)` — produce a complete prompt asking the model to decode-and-execute
+  - `detect_bypass(response, payload)` — heuristic to detect if a model decoded and acted on the payload
+  - `ENCODING_METHODS` — list of all available method names
+
+- **💬 Multi-Turn Conversation Attacker** (`offsec_ai.core.llm_conversation_attacker`)
+  - Requires `authorized=True`; prints legal authorization banner on every instantiation
+  - Attack patterns: **crescendo** (gradual escalation), **many-shot** (in-context few-shot jailbreak),
+    **context-priming** (false context injection), **goal-hijack** (incremental goal redefinition)
+  - `attack(endpoint, mode, ...)` returns `MultiTurnAttackResult` with full conversation transcript,
+    turn-by-turn analysis, escalation detection, and audit trail
+
+- **📊 Guardrail Benchmarker** (`offsec_ai.core.guardrail_bench`)
+  - Maps which OWASP LLM categories are blocked vs. passed by the target's content filter
+  - Produces a per-category block rate and overall `GuardrailBenchResult` with a letter grade
+  - Distinguishes between hard blocks (no response), soft refusals, and compliant responses
+
+- **⚔️ Active LLM Attack CLI** (`offsec-ai llm-attack`)
+  - Requires `--i-have-authorization`; authorization gate identical to `mcp-attack`/`openclaw-attack`
+  - Modes: `jailbreak` · `encoding` · `multiturn` · `agentic` · `guardrail` · `all`
+  - Safe mode — informational payload report (no auto-execution)
+  - Deep mode — actively sends attack payloads and reports results
+  - New models: `LLMAttackResult`, `LLMAttackReport` (`offsec_ai.models.llm_attack_result`)
+
+- **Extended `LLMOwaspScanner`** — jailbreak and encoding payloads are now plugged into the
+  deep-mode scanning pipeline alongside the existing 22 OWASP probes
+
+### Added — Enterprise-Grade Hardening (Track B)
+
+- **🏗️ Exception Hierarchy** (`offsec_ai.exceptions`)
+  - `OffsecError` — base class for all package exceptions
+  - `ScanError` — unexpected scan-operation failures
+  - `ConfigError` — invalid/missing configuration at startup
+  - `NetworkError` — DNS, connection, timeout failures
+  - `TargetUnreachableError` — target unreachable after all retries (subclass of `NetworkError`)
+  - `AuthorizationRequired` — consolidated single class (replaces duplicate definitions in
+    `mcp_attacker` and `openclaw_attacker`)
+
+- **⚙️ Centralised Config** (`offsec_ai.config`)
+  - `OffsecConfig(BaseSettings)` — pydantic-settings v2, validated at import time
+  - `SecretStr` for all API keys — never serialised or printed as plain text
+  - `.env` file support via `python-dotenv`
+  - All `OFFSEC_*` env vars: timeout, concurrency, retries, log level, log format, audit log path
+  - `get_config()` returns a cached singleton; `reset_config()` for test isolation
+
+- **📋 Structured Logging** (`offsec_ai.log_config`)
+  - `configure_logging(level, fmt)` — central setup; `fmt="json"` emits newline-delimited JSON
+  - `JsonFormatter` — includes `timestamp`, `level`, `logger`, `correlation_id`, `message`, plus
+    all extra fields passed to the log call
+  - `new_correlation_id()` / `get_correlation_id()` — `contextvars`-based async-safe correlation IDs
+    so all log lines from a single scan/attack share the same ID
+  - `audit_log(event, **fields)` — dedicated audit logger; always JSON; optionally rotated to file
+    via `OFFSEC_AUDIT_LOG_FILE`; records every authorized attack invocation
+
+- **Quality Gates**
+  - `pyproject.toml`: ruff linter/formatter configuration added; pytest markers registered
+    (`integration`, `slow`, `security`, `network`); `pydantic-settings` and `python-dotenv`
+    added as core dependencies
+  - `Makefile`: `ruff`, `bandit`, `audit` (pip-audit) targets; `ci` target updated
+
+- **CI/CD Security Scanning**
+  - `.github/workflows/test.yml`: `pip-audit` (dependency CVEs), `bandit` (SAST), `detect-secrets`
+    steps added to every test run
+  - `.pre-commit-config.yaml`: `ruff`, `bandit`, `detect-secrets` hooks added
+  - `.github/dependabot.yml`: automated dependency updates for pip and GitHub Actions
+  - `.secrets.baseline`: detect-secrets baseline committed
+
+- **CodeQL** (`.github/workflows/codeql.yml`) — restored for public repo; Python + Actions scanning
+  on push/PR/weekly schedule
+
+### Fixed
+
+- `httpx.AsyncClient` in all four scanners/attackers now sets `trust_env=False` to prevent
+  ambient SOCKS/HTTP proxies from the environment leaking into scan connections
+- `mcp-scan` CLI: added `--no-tls-verify` flag for self-signed/internal CA certificates
+  (e.g. `mcp.simpleportchecker.com` uses a Cloudflare internal CA)
+- `reportlab` added as explicit venv dependency (was declared in `pyproject.toml` but not
+  installed in the manually-created venv, causing `test_cli_mtls_commands_exist` to fail)
+
+### Tests
+
+- 195 tests passing (up from 63 in v2.1.0)
+- `tests/test_enterprise_features.py` — covers exceptions hierarchy, config validation,
+  logging/correlation IDs, jailbreak payload structure, encoding round-trips, multi-turn
+  attacker authorization gate, guardrail bench result model
+
 ## [2.1.0] - 2026-06-30
 
 ### Added — OpenClaw Gateway Security Assessment
