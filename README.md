@@ -33,6 +33,14 @@
 
 ## Features
 
+### New in v2.1.0 — OpenClaw Gateway Security
+
+| Feature | Description |
+|---------|-------------|
+| 🦞 **OpenClaw Scanner** | Five-phase passive assessment of [OpenClaw](https://github.com/openclaw/openclaw) AI-gateway deployments: fingerprint, endpoint enumeration, auth posture, config review, CVE/misconfiguration matching |
+| 🔟 **10 Advisory Checks** | OCL-ADV-001 through OCL-ADV-010 — from unauthenticated REST/WebSocket access to insecure sandbox modes, DM policy exposure, and API-key leakage via config endpoint |
+| ⚔️ **OpenClaw Attacker** | Authorized active exploitation: prompt injection, SSRF via webhook, session history dump, WebSocket message injection |
+
 ### New in v2.0.0 — AI / LLM Security
 
 | Feature | Description |
@@ -103,6 +111,11 @@ docker run --rm htunnthuthu/offsec-ai:latest --help
 offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions
 offsec-ai mcp-scan https://mcp.example.com/mcp
 offsec-ai mcp-attack https://mcp.example.com/mcp --i-have-authorization
+
+# OpenClaw gateway security
+offsec-ai openclaw-scan 192.168.1.10
+offsec-ai openclaw-scan gateway.example.com --port 18789 --tls
+offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization --mode deep
 
 # Infrastructure
 offsec-ai scan example.com
@@ -390,6 +403,109 @@ asyncio.run(main())
 
 ---
 
+## OpenClaw Gateway Security
+
+[OpenClaw](https://github.com/openclaw/openclaw) is a self-hosted AI-assistant gateway that bridges messaging platforms (Telegram, Discord, Slack, etc.) to LLM backends. Because OpenClaw instances are often internet-exposed, misconfigurations lead to unauthenticated LLM access, conversation history disclosure, SSRF, and prompt injection surfaces.
+
+### Scanner (`openclaw-scan`)
+
+Five-phase **passive** assessment — no exploitation:
+
+| Phase | What it does |
+|-------|--------------|
+| 1 — Fingerprint | Probe `/health`, `/status`, `/api/v1/status`; match headers/body against OpenClaw signatures; extract version and gateway ID |
+| 2 — Endpoint Enumeration | Probe all known API paths (`/api/v1/*`, `/ws/*`, `/webhooks`); flag endpoints leaking API keys or tokens in response bodies |
+| 3 — Authentication Posture | Detect unauthenticated REST API access; probe for unauthenticated WebSocket upgrade on `/ws` and `/api/v1/ws` |
+| 4 — Configuration Assessment | Parse `/api/v1/config` for DM policy and sandbox mode settings |
+| 5 — CVE / Misconfiguration | Cross-reference findings against advisory database; produce severity-ranked vulnerability list |
+
+### Advisory Database
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| OCL-ADV-001 | **Critical** | Unauthenticated REST API access |
+| OCL-ADV-002 | **High** | Open DM policy — all channels accepted |
+| OCL-ADV-003 | **High** | Sandbox mode disabled |
+| OCL-ADV-004 | **High** | Unauthenticated WebSocket connection |
+| OCL-ADV-005 | Medium | Health/status endpoint information disclosure |
+| OCL-ADV-006 | Medium | Webhook automation SSRF risk |
+| OCL-ADV-007 | Medium | Session history and message log exposure |
+| OCL-ADV-008 | Medium | Model API key leakage via config endpoint |
+| OCL-ADV-009 | Low | Gateway version fingerprinting |
+| OCL-ADV-010 | Info | OpenClaw instance fingerprint |
+
+### CLI Usage
+
+```bash
+# Passive scan — fingerprint and report misconfigurations
+offsec-ai openclaw-scan 192.168.1.10
+
+# Custom port / TLS
+offsec-ai openclaw-scan gateway.example.com --port 18789 --tls
+
+# With bearer token (authenticated scan)
+offsec-ai openclaw-scan gateway.example.com \
+    --header "Authorization: Bearer <token>"
+
+# Export JSON report
+offsec-ai openclaw-scan 192.168.1.10 --format json --output report.json
+
+# Active attack (requires explicit authorization flag)
+offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization
+
+# Deep mode — message injection + WebSocket + SSRF probes
+offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization --mode deep
+
+# Export attack report
+offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization \
+    --mode deep --format json --output attack.json
+```
+
+### Python API
+
+```python
+import asyncio
+from offsec_ai.core.openclaw_scanner import OpenClawScanner
+from offsec_ai.core.openclaw_attacker import OpenClawAttacker
+from offsec_ai.exceptions import AuthorizationRequired
+
+async def main():
+    # Passive scan
+    scanner = OpenClawScanner(
+        target="192.168.1.10",
+        port=18789,
+        use_tls=False,
+    )
+    result = await scanner.scan()
+
+    print(f"OpenClaw detected : {result.openclaw_detected}")
+    print(f"Version           : {result.version}")
+    print(f"Unauthenticated   : {result.unauthenticated_access}")
+    print(f"Vulnerabilities   : {len(result.vulnerabilities)}")
+    for v in result.vulnerabilities:
+        print(f"  [{v.severity}] {v.advisory_id}: {v.title}")
+
+    # Authorized active attack
+    try:
+        attacker = OpenClawAttacker(authorized=True)
+        report = await attacker.attack(
+            target="192.168.1.10",
+            port=18789,
+            mode="safe",   # "safe" | "deep"
+        )
+        print(f"Attacks triggered : {len(report.triggered_results)}")
+        for r in report.triggered_results:
+            print(f"  [{r.severity}] {r.title}")
+    except AuthorizationRequired as exc:
+        print(exc)
+
+asyncio.run(main())
+```
+
+See [docs/openclaw.md](docs/openclaw.md) for the full guide including remediation advice.
+
+---
+
 ## Infrastructure Scanning
 
 ### Port Scanner
@@ -480,6 +596,8 @@ Commands:
   ai-owasp-scan       Probe a live LLM/AI endpoint for AI OWASP Top 10
   mcp-scan            Scan an MCP endpoint for security vulnerabilities
   mcp-attack          Perform authorized active testing against an MCP server
+  openclaw-scan       Five-phase passive security scan of an OpenClaw AI gateway
+  openclaw-attack     Authorized active attack against an OpenClaw gateway
   scan                Scan target hosts for open ports
   l7-check            Check for L7 protection services (WAF, CDN, etc.)
   full-scan           Port scan + L7 protection detection

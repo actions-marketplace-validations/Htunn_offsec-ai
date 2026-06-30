@@ -24,6 +24,7 @@ from __future__ import annotations
 import base64
 import codecs
 import re
+from collections.abc import Callable
 
 # ---------------------------------------------------------------------------
 # Individual encoders
@@ -111,7 +112,7 @@ ENCODING_METHODS: list[str] = [
     "zero_width",
 ]
 
-_ENCODERS: dict[str, "function"] = {  # type: ignore[type-arg]
+_ENCODERS: dict[str, Callable[[str], str]] = {
     "base64": _encode_base64,
     "rot13": _encode_rot13,
     "leet": _encode_leet,

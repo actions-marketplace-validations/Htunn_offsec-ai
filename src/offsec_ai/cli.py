@@ -3040,7 +3040,7 @@ async def _run_openclaw_attack(
 
     try:
         attacker = OpenClawAttacker(authorized=True)
-    except OpenClawAuthorizationRequired as exc:
+    except AuthorizationRequired as exc:
         console.print(f"[red]{exc}[/red]")
         raise SystemExit(1)
 
