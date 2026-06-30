@@ -2172,3 +2172,289 @@ judge = LLMJudge()  # picks up GEMINI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_K
 result = await scanner.scan(judge=judge)
 # Findings now include judge's vulnerable/confidence assessments
 ```
+
+---
+
+## OpenClaw Gateway Security
+
+OpenClaw (<https://github.com/openclaw/openclaw>) is a personal AI assistant gateway that connects messaging platforms (Telegram, Discord, etc.) to LLM backends. `offsec-ai` can fingerprint, assess, and (with explicit authorization) actively probe OpenClaw deployments for security misconfigurations.
+
+### OpenClawScanner
+
+Passive security scanner — fingerprints the gateway, enumerates accessible endpoints, checks authentication posture and configuration, and produces a ranked vulnerability list.
+
+```python
+from offsec_ai.core.openclaw_scanner import OpenClawScanner
+
+scanner = OpenClawScanner(
+    target="192.168.1.10",
+    port=18789,          # default OpenClaw port
+    timeout=15.0,
+    use_tls=False,
+    headers={"Authorization": "Bearer <token>"},  # optional
+)
+result = await scanner.scan()
+
+print(f"Is OpenClaw: {result.is_openclaw}")
+print(f"Version:     {result.server_info.version if result.server_info else 'unknown'}")
+print(f"Critical:    {len(result.critical_vulns)}")
+print(f"High:        {len(result.high_vulns)}")
+for vuln in result.all_vulns:
+    print(f"  [{vuln.severity.value.upper()}] {vuln.vuln_id}: {vuln.title}")
+```
+
+#### Constructor
+
+```python
+OpenClawScanner(
+    target: str,
+    port: int = 18789,
+    headers: dict[str, str] | None = None,
+    timeout: float = 15.0,
+    use_tls: bool = False,
+)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `target` | `str` | Hostname or IP address of the OpenClaw gateway |
+| `port` | `int` | Gateway listen port (default `18789`) |
+| `headers` | `dict` | Extra HTTP headers, e.g. `Authorization` |
+| `timeout` | `float` | Per-request timeout in seconds |
+| `use_tls` | `bool` | Use HTTPS instead of HTTP |
+
+#### `scan()` → `OpenClawScanResult`
+
+Runs five sequential phases:
+
+1. **Fingerprint** — probes well-known paths; checks response headers and JSON body for OpenClaw signatures
+2. **Endpoint enumeration** — probes all known API paths and records accessible endpoints with sensitive-data detection
+3. **Auth posture** — detects unauthenticated API access and unauthenticated WebSocket upgrades
+4. **Configuration** — parses `/api/v1/config` for open DM policy and sandbox mode
+5. **CVE matching** — compares accessible paths and configuration against the built-in CVE/misconfiguration database
+
+If the target is not identified as an OpenClaw instance, `result.is_openclaw` is `False` and phases 2–5 are skipped.
+
+### OpenClawAttacker
+
+Active attack module. Requires explicit runtime authorization.
+
+```python
+from offsec_ai.core.openclaw_attacker import OpenClawAttacker, AuthorizationRequired
+
+# Raises AuthorizationRequired if authorized=False
+attacker = OpenClawAttacker(authorized=True)
+
+report = await attacker.attack(
+    target="192.168.1.10",
+    port=18789,
+    mode="safe",   # "safe" | "deep"
+    timeout=15.0,
+    use_tls=False,
+    headers={},
+    scan_result=None,  # optionally pass an OpenClawScanResult from a prior scan
+)
+
+print(f"Attacks run:      {len(report.attack_results)}")
+print(f"Successful:       {len(report.successful_attacks)}")
+print(f"Critical hits:    {len(report.critical_successes)}")
+for r in report.successful_attacks:
+    print(f"  [{r.severity.value.upper()}] {r.attack_id}: {r.evidence}")
+```
+
+#### Constructor
+
+```python
+OpenClawAttacker(authorized: bool = False)
+```
+
+Raises `AuthorizationRequired` immediately if `authorized` is not `True`. Prints a legal authorization banner to the logger on every instantiation.
+
+#### `attack(...)` → `OpenClawAttackReport`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `target` | `str` | — | Hostname or IP address |
+| `port` | `int` | `18789` | Gateway listen port |
+| `mode` | `str` | `"safe"` | `"safe"` — API probes only; `"deep"` — adds message injection, WebSocket probes, SSRF |
+| `headers` | `dict` | `{}` | Extra HTTP headers |
+| `timeout` | `float` | `15.0` | Per-request timeout |
+| `use_tls` | `bool` | `False` | Use HTTPS |
+| `scan_result` | `OpenClawScanResult` | `None` | Prior scan result to guide attack selection |
+
+**Safe mode attacks:** unauthenticated API endpoint probes
+
+**Deep mode adds:** message injection via unauthenticated endpoints, WebSocket upgrade probes, SSRF via webhook endpoint, prompt-injection payload report (informational — payloads are listed but not auto-sent to protect against unintended model manipulation)
+
+### Result Models
+
+#### `OpenClawScanResult`
+
+```python
+from offsec_ai.models.openclaw_result import OpenClawScanResult, OpenClawVulnSeverity
+
+result.target                    # str — scanned host
+result.port                      # int
+result.is_openclaw               # bool — confirmed OpenClaw gateway
+result.server_info               # OpenClawServerInfo | None
+result.accessible_endpoints      # list[OpenClawAccessibleEndpoint]
+result.auth_posture              # OpenClawAuthPosture | None
+result.dm_policy                 # OpenClawDMPolicy | None
+result.sandbox_info              # OpenClawSandboxInfo | None
+result.vulnerabilities           # list[OpenClawVulnerability]
+result.scan_duration             # float — seconds
+result.error                     # str — non-empty on fatal error
+
+# Convenience properties
+result.critical_vulns            # list[OpenClawVulnerability] — CRITICAL only
+result.high_vulns                # list[OpenClawVulnerability] — HIGH only
+result.all_vulns                 # list[OpenClawVulnerability] — all severities, sorted
+
+result.model_dump()              # dict — JSON-serialisable
+```
+
+#### `OpenClawServerInfo`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | `str` | Gateway version string (e.g. `"2026.6.10"`) |
+| `gateway_id` | `str` | Unique gateway identifier |
+| `connected_channels` | `list[str]` | Platform channels (e.g. `["telegram", "discord"]`) |
+| `active_sessions` | `int` | Current active sessions |
+| `node_count` | `int` | Cluster node count |
+| `raw` | `dict` | Full raw JSON from the health/status endpoint |
+
+#### `OpenClawVulnerability`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `vuln_id` | `str` | Advisory ID, e.g. `"OCL-ADV-001"` |
+| `severity` | `OpenClawVulnSeverity` | `critical / high / medium / low / info` |
+| `title` | `str` | Short vulnerability title |
+| `description` | `str` | Full description |
+| `evidence` | `str` | Observed evidence from scan |
+| `remediation` | `str` | Recommended fix |
+| `references` | `list[str]` | External reference URLs |
+
+#### `OpenClawAttackReport`
+
+```python
+report.target                    # str
+report.port                      # int
+report.mode                      # "safe" | "deep"
+report.attack_results            # list[OpenClawAttackResult]
+report.prompt_injection_report   # list[dict] — informational payloads (deep mode only)
+report.attack_duration           # float — seconds
+
+report.successful_attacks        # list[OpenClawAttackResult] — succeeded=True
+report.critical_successes        # list[OpenClawAttackResult] — critical + succeeded
+```
+
+#### `OpenClawAttackResult`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `attack_id` | `str` | Payload identifier |
+| `description` | `str` | What was attempted |
+| `severity` | `OpenClawVulnSeverity` | Expected impact severity |
+| `succeeded` | `bool` | Whether the attack appeared to succeed |
+| `evidence` | `str` | Response snippet or indicator |
+| `http_status` | `int` | HTTP response status code |
+| `duration` | `float` | Round-trip time in seconds |
+
+### CVE / Misconfiguration Database
+
+```python
+from offsec_ai.utils.openclaw_cve_db import (
+    OPENCLAW_CVE_DB,        # list[OpenClawCVEEntry] — 10 advisories
+    OPENCLAW_DEFAULT_PORT,  # 18789
+    OPENCLAW_FINGERPRINTS,  # list[dict] — header/body fingerprint rules
+    OPENCLAW_PROBE_PATHS,   # list[str] — fingerprinting probe paths
+    OPENCLAW_API_PATHS,     # list[str] — full API path list for enumeration
+    match_cves,             # function
+)
+
+# Find applicable advisories for a scanned gateway
+matches = match_cves(
+    version="2026.6.10",               # optional — narrows version-specific entries
+    accessible_paths=["/api/v1/status", "/api/v1/sessions/history"],
+)
+for entry in matches:
+    print(f"{entry.vuln_id} [{entry.severity}]: {entry.title}")
+```
+
+**Advisory IDs:**
+
+| ID | Severity | Title |
+|----|----------|-------|
+| OCL-ADV-001 | Critical | Unauthenticated REST API Access |
+| OCL-ADV-002 | High | Open DM Policy — All Channels Accepted |
+| OCL-ADV-003 | High | Sandbox Mode Disabled |
+| OCL-ADV-004 | High | Unauthenticated WebSocket Connection |
+| OCL-ADV-005 | Medium | Health/Status Endpoint Information Disclosure |
+| OCL-ADV-006 | Medium | Webhook Automation Endpoint SSRF Risk |
+| OCL-ADV-007 | Medium | Session History and Message Log Exposure |
+| OCL-ADV-008 | Medium | Model API Key Leakage via Debug/Config Endpoint |
+| OCL-ADV-009 | Low | Gateway Version Fingerprinting |
+| OCL-ADV-010 | Info | OpenClaw Instance Fingerprint |
+
+### CLI Usage
+
+```bash
+# Passive scan — identify misconfiguration and CVEs
+offsec-ai openclaw-scan 192.168.1.10 --port 18789
+
+# With TLS and custom timeout
+offsec-ai openclaw-scan gateway.internal --tls --timeout 30
+
+# Pass a bearer token for authenticated scanning
+offsec-ai openclaw-scan gateway.internal --header "Authorization: Bearer <token>"
+
+# Export results to JSON
+offsec-ai openclaw-scan 192.168.1.10 --format json --output results.json
+
+# Active attack — requires explicit authorization flag
+offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization
+
+# Deep mode (message injection + WebSocket + SSRF probes)
+offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization --mode deep
+
+# Export attack report
+offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization --format json --output attack.json
+```
+
+### Scan-then-Attack Workflow
+
+```python
+import asyncio
+from offsec_ai.core.openclaw_scanner import OpenClawScanner
+from offsec_ai.core.openclaw_attacker import OpenClawAttacker
+
+async def assess_openclaw_gateway(host: str, port: int = 18789):
+    # Phase 1: passive scan
+    scanner = OpenClawScanner(target=host, port=port)
+    scan_result = await scanner.scan()
+
+    if not scan_result.is_openclaw:
+        print("Not an OpenClaw gateway — aborting.")
+        return
+
+    print(f"OpenClaw {scan_result.server_info.version} detected")
+    print(f"  Critical vulns: {len(scan_result.critical_vulns)}")
+    print(f"  High vulns:     {len(scan_result.high_vulns)}")
+
+    # Phase 2: active attack (only when authorized)
+    attacker = OpenClawAttacker(authorized=True)
+    report = await attacker.attack(
+        target=host,
+        port=port,
+        mode="deep",
+        scan_result=scan_result,
+    )
+
+    print(f"\nAttack report — {len(report.successful_attacks)} successful attacks")
+    for r in report.critical_successes:
+        print(f"  CRITICAL: {r.attack_id} — {r.evidence}")
+
+asyncio.run(assess_openclaw_gateway("192.168.1.10"))
+```

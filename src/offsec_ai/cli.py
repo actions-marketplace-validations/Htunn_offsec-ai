@@ -2,7 +2,8 @@
 Command Line Interface for offsec-ai.
 
 Comprehensive offensive-security CLI: port scanning, L7/WAF detection, mTLS, certificate
-analysis, OWASP Top 10, AI/LLM OWASP Top 10 black-box probing, and MCP endpoint security.
+analysis, OWASP Top 10, AI/LLM OWASP Top 10 black-box probing, MCP endpoint security,
+and OpenClaw gateway security assessment.
 """
 
 import asyncio
@@ -36,6 +37,8 @@ from .core.owasp_scanner import OwaspScanner
 from .core.ai_owasp_scanner import LLMOwaspScanner
 from .core.mcp_scanner import MCPScanner
 from .core.mcp_attacker import MCPAttacker, AuthorizationRequired
+from .core.openclaw_scanner import OpenClawScanner
+from .core.openclaw_attacker import OpenClawAttacker, AuthorizationRequired as OpenClawAuthorizationRequired
 from .core.llm_judge import LLMJudge
 from .models.scan_result import ScanResult, BatchScanResult
 from .models.l7_result import L7Result, BatchL7Result
@@ -43,6 +46,11 @@ from .models.mtls_result import MTLSResult, BatchMTLSResult
 from .models.owasp_result import OwaspScanResult, SeverityLevel
 from .models.ai_owasp_result import LLMScanResult, LLMScanMode, LLMSeverity
 from .models.mcp_result import MCPScanResult, MCPAttackReport, MCPVulnSeverity
+from .models.openclaw_result import (
+    OpenClawScanResult,
+    OpenClawAttackReport,
+    OpenClawVulnSeverity,
+)
 from .utils.common_ports import TOP_PORTS, get_service_name, get_port_description
 from .utils.exporters import OwaspPdfExporter, export_to_csv, export_to_json
 from . import __version__
@@ -2762,3 +2770,339 @@ def _display_mcp_attack_report(report: MCPAttackReport) -> None:
                 console.print(f"    [dim]Evidence: {r.evidence[:120]}[/dim]")
     else:
         console.print("\n[green]No attacks triggered. Target appears resilient to tested probes.[/green]")
+
+
+# ============================================================================
+# openclaw-scan — OpenClaw gateway security scanner
+# ============================================================================
+
+@main.command("openclaw-scan")
+@click.argument("target")
+@click.option("--port", "-p", default=18789, show_default=True,
+              help="OpenClaw gateway port.")
+@click.option("--tls", "use_tls", is_flag=True, default=False,
+              help="Use HTTPS (TLS) instead of HTTP.")
+@click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE",
+              help="Extra HTTP headers, e.g. --header 'Authorization:Bearer <token>'")
+@click.option("--timeout", default=15.0, show_default=True,
+              help="Request timeout in seconds.")
+@click.option("--format", "output_format", type=click.Choice(["console", "json"]),
+              default="console", show_default=True)
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Save JSON result to file.")
+def openclaw_scan(target, port, use_tls, extra_headers, timeout, output_format, output):
+    """Scan an OpenClaw gateway for misconfigurations and CVEs.
+
+    TARGET is the hostname or IP address of the OpenClaw gateway.
+    The scanner fingerprints the instance, enumerates accessible endpoints,
+    checks DM policy and sandbox configuration, and matches findings against
+    the OpenClaw CVE and misconfiguration database.
+
+    Examples:
+
+        offsec-ai openclaw-scan 192.168.1.10
+        offsec-ai openclaw-scan myclaw.example.com --port 18789 --tls
+        offsec-ai openclaw-scan 10.0.0.5 --format json --output openclaw-report.json
+        offsec-ai openclaw-scan openclaw.corp.local --header 'Authorization:Bearer mytoken'
+    """
+    asyncio.run(_run_openclaw_scan(
+        target=target, port=port, use_tls=use_tls,
+        extra_headers=list(extra_headers), timeout=timeout,
+        output_format=output_format, output=output,
+    ))
+
+
+async def _run_openclaw_scan(
+    target: str,
+    port: int,
+    use_tls: bool,
+    extra_headers: list,
+    timeout: float,
+    output_format: str,
+    output: Optional[str],
+) -> None:
+    from .models.openclaw_result import OpenClawVulnSeverity
+
+    headers: dict[str, str] = {}
+    for h in extra_headers:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+
+    scanner = OpenClawScanner(
+        target=target,
+        port=port,
+        headers=headers,
+        timeout=timeout,
+        use_tls=use_tls,
+    )
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Scanning OpenClaw gateway {target}:{port}...", total=None)
+        result = await scanner.scan()
+        progress.stop_task(task)
+
+    if result.error and not result.is_openclaw:
+        console.print(f"[bold red]Error:[/bold red] {result.error}")
+        return
+
+    if output_format == "json" or output:
+        import json as _json
+        data = result.model_dump(mode="json")
+        if output:
+            Path(output).write_text(_json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Results saved to {output}[/green]")
+        if output_format == "json":
+            console.print_json(_json.dumps(data, default=str))
+        return
+
+    _display_openclaw_scan_result(result)
+
+
+def _display_openclaw_scan_result(result) -> None:
+    from .models.openclaw_result import OpenClawVulnSeverity
+
+    critical = [v for v in result.vulnerabilities if v.severity == OpenClawVulnSeverity.CRITICAL]
+    high = [v for v in result.vulnerabilities if v.severity == OpenClawVulnSeverity.HIGH]
+
+    panel_color = "red" if critical else ("yellow" if high else "green")
+
+    console.print(Panel(
+        f"[bold]Target:[/bold] {result.target}:{result.port}\n"
+        f"[bold]OpenClaw Detected:[/bold] {'[green]YES[/green]' if result.is_openclaw else '[red]NO[/red]'}\n"
+        f"[bold]Version:[/bold] {result.server_info.version or 'unknown'}\n"
+        f"[bold]Unauthenticated API:[/bold] "
+        f"{'[red]YES[/red]' if result.auth_posture.unauthenticated_api_access else '[green]NO[/green]'}\n"
+        f"[bold]Unauthenticated WS:[/bold] "
+        f"{'[red]YES[/red]' if result.auth_posture.unauthenticated_ws_access else '[green]NO[/green]'}\n"
+        f"[bold]DM Policy:[/bold] {result.dm_policy.policy}  "
+        f"[bold]Wildcard allowlist:[/bold] "
+        f"{'[red]YES[/red]' if result.dm_policy.has_wildcard_allowlist else '[green]NO[/green]'}\n"
+        f"[bold]Sandbox Mode:[/bold] {result.sandbox_info.sandbox_mode}\n"
+        f"[bold]Accessible Endpoints:[/bold] {len(result.accessible_endpoints)}\n"
+        f"[bold]Vulnerabilities:[/bold] [red]{len(critical)} critical[/red]  "
+        f"[yellow]{len(high)} high[/yellow]  {len(result.vulnerabilities)} total\n"
+        f"[bold]Duration:[/bold] {result.scan_duration:.1f}s",
+        title="[bold cyan]OpenClaw Gateway Security Scan[/bold cyan]",
+        border_style=panel_color,
+    ))
+
+    if result.accessible_endpoints:
+        ep_table = Table(title="Accessible Endpoints", show_header=True, header_style="bold blue")
+        ep_table.add_column("Path", style="cyan")
+        ep_table.add_column("Status", justify="center")
+        ep_table.add_column("Sensitive Keys")
+        for ep in result.accessible_endpoints:
+            ep_table.add_row(
+                ep.path,
+                str(ep.status_code),
+                ", ".join(ep.sensitive_data_found) or "-",
+            )
+        console.print(ep_table)
+
+    if result.vulnerabilities:
+        console.print("\n[bold]Vulnerabilities Found:[/bold]")
+        for vuln in result.vulnerabilities:
+            sev_color = {
+                OpenClawVulnSeverity.CRITICAL: "bold red",
+                OpenClawVulnSeverity.HIGH: "red",
+                OpenClawVulnSeverity.MEDIUM: "yellow",
+                OpenClawVulnSeverity.LOW: "cyan",
+                OpenClawVulnSeverity.INFO: "dim",
+            }.get(vuln.severity, "white")
+            cve = f" [{vuln.cve_id}]" if vuln.cve_id else ""
+            console.print(
+                f"  [{sev_color}]{vuln.severity.value.upper()}[/{sev_color}] "
+                f"[bold]{vuln.vuln_id}[/bold]{cve}: {vuln.title}"
+            )
+            if vuln.evidence:
+                console.print(f"    [dim]Evidence: {vuln.evidence[:120]}[/dim]")
+            if vuln.remediation:
+                console.print(f"    [green]Fix: {vuln.remediation[:120]}[/green]")
+    else:
+        console.print("\n[green]No vulnerabilities found.[/green]")
+
+
+# ============================================================================
+# openclaw-attack — OpenClaw gateway attacker (gated, authorized use only)
+# ============================================================================
+
+@main.command("openclaw-attack")
+@click.argument("target")
+@click.option("--port", "-p", default=18789, show_default=True,
+              help="OpenClaw gateway port.")
+@click.option("--tls", "use_tls", is_flag=True, default=False,
+              help="Use HTTPS (TLS).")
+@click.option("--mode", type=click.Choice(["safe", "deep"]), default="safe", show_default=True,
+              help="safe: API probes only. deep: full suite including WS, SSRF, message injection.")
+@click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE",
+              help="Extra HTTP headers.")
+@click.option("--timeout", default=15.0, show_default=True,
+              help="Request timeout in seconds.")
+@click.option("--i-have-authorization", "authorized", is_flag=True, default=False,
+              help="Confirm you have explicit written authorization to attack this target.")
+@click.option("--format", "output_format", type=click.Choice(["console", "json"]),
+              default="console", show_default=True)
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Save JSON report to file.")
+def openclaw_attack(target, port, use_tls, mode, extra_headers, timeout,
+                    authorized, output_format, output):
+    """Actively attack an OpenClaw gateway (AUTHORIZED USE ONLY).
+
+    ⚠  THIS COMMAND PERFORMS ACTIVE ATTACKS. Only use against systems
+    for which you have EXPLICIT WRITTEN AUTHORIZATION.
+
+    TARGET is the hostname or IP address of the OpenClaw gateway.
+
+    Modes:
+        safe  — unauthenticated API endpoint probes only
+        deep  — full suite: API probes, message injection, WebSocket, SSRF
+
+    Examples:
+
+        offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization
+        offsec-ai openclaw-attack openclaw.corp.local --mode deep --i-have-authorization
+        offsec-ai openclaw-attack 10.0.0.5 --mode deep -o attack-report.json --i-have-authorization
+    """
+    if not authorized:
+        console.print(
+            "[bold red]⚠  --i-have-authorization flag is required.[/bold red]\n"
+            "This command performs ACTIVE ATTACKS. Only use against systems you "
+            "have explicit written authorization to test.\n"
+            "Add [bold]--i-have-authorization[/bold] to confirm."
+        )
+        raise SystemExit(1)
+
+    asyncio.run(_run_openclaw_attack(
+        target=target, port=port, use_tls=use_tls, mode=mode,
+        extra_headers=list(extra_headers), timeout=timeout,
+        output_format=output_format, output=output,
+    ))
+
+
+async def _run_openclaw_attack(
+    target: str,
+    port: int,
+    use_tls: bool,
+    mode: str,
+    extra_headers: list,
+    timeout: float,
+    output_format: str,
+    output: Optional[str],
+) -> None:
+    from .models.openclaw_result import OpenClawVulnSeverity
+
+    headers: dict[str, str] = {}
+    for h in extra_headers:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+
+    # First scan the target
+    console.print(f"[yellow]Phase 1: Scanning {target}:{port}...[/yellow]")
+    scanner = OpenClawScanner(target=target, port=port, headers=headers,
+                               timeout=timeout, use_tls=use_tls)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        scan_task = progress.add_task("Fingerprinting OpenClaw gateway...", total=None)
+        scan_result = await scanner.scan()
+        progress.stop_task(scan_task)
+
+    if not scan_result.is_openclaw:
+        console.print(
+            f"[red]Target {target}:{port} does not appear to be an OpenClaw gateway.[/red]"
+        )
+        if scan_result.error:
+            console.print(f"[red]Error: {scan_result.error}[/red]")
+        return
+
+    console.print(f"[green]OpenClaw gateway detected. Version: {scan_result.server_info.version or 'unknown'}[/green]")
+
+    # Run attack
+    console.print(f"\n[yellow]Phase 2: Attacking in [{mode.upper()}] mode...[/yellow]")
+
+    try:
+        attacker = OpenClawAttacker(authorized=True)
+    except OpenClawAuthorizationRequired as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise SystemExit(1)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        atk_task = progress.add_task(f"Running {mode} attack suite...", total=None)
+        report = await attacker.attack(
+            target=target, port=port, mode=mode,
+            headers=headers, timeout=timeout, use_tls=use_tls,
+            scan_result=scan_result,
+        )
+        progress.stop_task(atk_task)
+
+    if output_format == "json" or output:
+        import json as _json
+        data = report.model_dump(mode="json")
+        if output:
+            Path(output).write_text(_json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Attack report saved to {output}[/green]")
+        if output_format == "json":
+            console.print_json(_json.dumps(data, default=str))
+        return
+
+    _display_openclaw_attack_report(report)
+
+
+def _display_openclaw_attack_report(report) -> None:
+    from .models.openclaw_result import OpenClawVulnSeverity
+
+    succeeded = report.successful_attacks
+    critical = report.critical_successes
+    panel_color = "red" if critical else ("yellow" if succeeded else "green")
+
+    console.print(Panel(
+        f"[bold]Target:[/bold] {report.target}:{report.port}\n"
+        f"[bold]Mode:[/bold] {report.mode.upper()}\n"
+        f"[bold]Attacks run:[/bold] {len(report.attack_results)}  "
+        f"[bold]Succeeded:[/bold] [{'red' if succeeded else 'green'}]{len(succeeded)}[/{'red' if succeeded else 'green'}]\n"
+        f"[bold]Critical:[/bold] [red]{len(critical)}[/red]\n"
+        f"[bold]Duration:[/bold] {report.attack_duration:.1f}s",
+        title="[bold red]OpenClaw Attack Report[/bold red]",
+        border_style=panel_color,
+    ))
+
+    if succeeded:
+        console.print("\n[bold red]Successful Attacks:[/bold red]")
+        for r in succeeded:
+            sev_color = {
+                OpenClawVulnSeverity.CRITICAL: "bold red",
+                OpenClawVulnSeverity.HIGH: "red",
+                OpenClawVulnSeverity.MEDIUM: "yellow",
+            }.get(r.severity, "white")
+            console.print(
+                f"  [{sev_color}]{r.severity.value.upper()}[/{sev_color}] "
+                f"[bold]{r.attack_id}[/bold]: {r.description}"
+            )
+            if r.evidence:
+                console.print(f"    [dim]Evidence: {r.evidence[:120]}[/dim]")
+    else:
+        console.print("\n[green]No attacks succeeded. Target appears resilient to tested probes.[/green]")
+
+    # Show manual prompt injection payloads in deep mode
+    manual_steps = [r for r in report.attack_results if "manual delivery required" in r.error.lower()]
+    if manual_steps:
+        console.print("\n[bold yellow]Manual Prompt Injection Payloads (deliver via messaging channel):[/bold yellow]")
+        for r in manual_steps:
+            console.print(f"  [cyan][{r.attack_id}][/cyan] {r.description}")
+            console.print(f"    [dim]Payload: {r.payload_sent[:100]}[/dim]")

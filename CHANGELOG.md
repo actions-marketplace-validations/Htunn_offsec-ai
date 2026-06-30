@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-06-30
+
+### Added — OpenClaw Gateway Security Assessment
+
+- **🦀 OpenClaw Scanner** (`offsec_ai.core.openclaw_scanner.OpenClawScanner`)
+  - Fingerprints OpenClaw personal AI assistant gateway deployments (default port 18789)
+  - Five-phase scan: fingerprint → endpoint enumeration → auth posture → configuration → CVE matching
+  - Detects unauthenticated REST API access, open DM policy, disabled sandbox, unauthenticated WebSocket upgrades, health endpoint disclosure, session history exposure, API key leakage
+  - Response body capped at 64 KB per request to prevent memory issues with binary/large payloads
+  - `trust_env=False` on httpx client to prevent ambient proxy interference
+  - CLI command: `offsec-ai openclaw-scan`
+
+- **⚔️ OpenClaw Attacker** (`offsec_ai.core.openclaw_attacker.OpenClawAttacker`)
+  - Active red-team probe suite for authorized security assessments
+  - Hard authorization gate: `OpenClawAttacker(authorized=False)` raises `AuthorizationRequired`; `--i-have-authorization` required at CLI
+  - **Safe mode**: unauthenticated API endpoint probes across all known `/api/v1/*` paths
+  - **Deep mode**: adds message injection, WebSocket upgrade probes, SSRF via webhook endpoint, and an informational prompt-injection payload report (payloads listed but not auto-executed to avoid unintended model manipulation)
+  - Response body capped at 4 KB per attack request
+  - CLI command: `offsec-ai openclaw-attack`
+
+- **New models** (`offsec_ai.models.openclaw_result`): `OpenClawScanResult`, `OpenClawAttackReport`, `OpenClawAttackResult`, `OpenClawVulnerability`, `OpenClawServerInfo`, `OpenClawAuthPosture`, `OpenClawDMPolicy`, `OpenClawSandboxInfo`, `OpenClawAccessibleEndpoint`, `OpenClawVulnSeverity`
+
+- **New utilities**:
+  - `offsec_ai.utils.openclaw_cve_db` — 10 OpenClaw-specific advisories (OCL-ADV-001 through OCL-ADV-010) covering critical through informational severity; `match_cves()` path and version filter function; `OPENCLAW_FINGERPRINTS`, `OPENCLAW_PROBE_PATHS`, `OPENCLAW_API_PATHS`
+  - `offsec_ai.utils.openclaw_payloads` — `DM_PROMPT_INJECTION_PAYLOADS`, `API_AUTH_BYPASS_PAYLOADS`, `MESSAGE_INJECTION_PAYLOADS`, `SSRF_WEBHOOK_PAYLOADS`, `WEBSOCKET_PROBE_PATHS`
+
+- **Tests**: 63 new tests in `tests/test_openclaw.py` covering CVE DB integrity, payload structure, result model properties, scanner fingerprinting (positive/negative), endpoint enumeration, auth posture detection, configuration parsing, vulnerability matching, attacker authorization gating, API probes (safe mode), deep-mode attacks, and full scan-then-attack end-to-end flow — all passing
+
+### Changed
+- `pyproject.toml`: description updated to include "OpenClaw gateway security assessment"; keywords updated with `"openclaw"`, `"ai-gateway"`, `"personal-ai"`
+- `src/offsec_ai/cli.py`: added `openclaw-scan` and `openclaw-attack` commands with `--port`, `--tls`, `--header`, `--timeout`, `--format`, `--output` options; `openclaw-attack` additionally requires `--i-have-authorization` and `--mode safe|deep`
+- `docs/api.md`: new **OpenClaw Gateway Security** section with full API reference, advisory table, CLI examples, and scan-then-attack workflow example
+- Removed `sonar-project.properties` and `.github/workflows/sonarcloud.yml` (SonarCloud integration disabled)
+
 ## [2.0.2] - 2026-06-29
 
 ### Changed
