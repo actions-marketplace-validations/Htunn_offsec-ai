@@ -59,13 +59,14 @@ class MCPAttacker:
     Requires authorized=True. Will refuse all operations if not authorized.
     """
 
-    def __init__(self, authorized: bool = False) -> None:
+    def __init__(self, authorized: bool = False, judge: object | None = None) -> None:
         if not authorized:
             raise AuthorizationRequired(
                 "MCPAttacker requires authorized=True. "
                 "Only use this against systems you have explicit written authorization to test."
             )
         self.authorized = True
+        self._judge = judge
 
     async def attack(
         self,
@@ -137,7 +138,7 @@ class MCPAttacker:
         scan_duration = time.monotonic() - start
         triggered = [r for r in all_results if r.triggered]
 
-        return MCPAttackReport(
+        report = MCPAttackReport(
             target=target,
             authorized=True,
             transport=MCPTransport(transport),
@@ -146,6 +147,32 @@ class MCPAttacker:
             results=all_results,
             scan_duration=scan_duration,
         )
+
+        # Optional LLM enrichment
+        if self._judge and getattr(self._judge, "provider", None):
+            self._enrich_with_llm(report)
+
+        return report
+
+    def _enrich_with_llm(self, report: MCPAttackReport) -> None:
+        """Use LLM judge to build an attack-path narrative for triggered attacks."""
+        if not self._judge:
+            return
+        triggered = [r for r in report.results if r.triggered]
+        if not triggered:
+            return
+        try:
+            summary = "; ".join(f"{r.attack_id}:{r.title}" for r in triggered[:5])
+            verdict = self._judge.evaluate(
+                category="MCP attack-path",
+                probe=summary,
+                response=f"{len(triggered)} attack(s) triggered",
+            )
+            reason = verdict.get("reason", "")
+            if reason:
+                triggered[0].evidence += f" [LLM analysis: {reason}]"
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("LLM enrichment error: %s", exc)
 
     # ------------------------------------------------------------------
     # Auth bypass

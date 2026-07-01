@@ -130,7 +130,8 @@ class K8sAttacker:
             # --- Safe mode attacks (run always) ---
 
             # Anon API server read probes (K03, K09)
-            apiserver_ports = [p for p in ports if p in (6443, 443, 8080)]
+            # 8001 = kubectl proxy (plain HTTP), 8080 = legacy insecure port
+            apiserver_ports = [p for p in ports if p in (6443, 443, 8080, 8001)]
             for port in apiserver_ports:
                 scheme = "https" if port in _TLS_PORTS else "http"
                 base = f"{scheme}://{target}:{port}"

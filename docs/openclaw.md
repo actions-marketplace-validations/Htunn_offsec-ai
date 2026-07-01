@@ -19,6 +19,9 @@ offsec-ai openclaw-scan gateway.example.com --port 18789 --tls
 offsec-ai openclaw-scan gateway.example.com \
     --header "Authorization: Bearer <token>"
 
+# With LLM judge for enriched finding triage
+offsec-ai openclaw-scan 192.168.1.10 --llm-judge
+
 # Export JSON report
 offsec-ai openclaw-scan 192.168.1.10 --format json --output report.json
 
@@ -27,6 +30,9 @@ offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization
 
 # Deep mode — message injection + WebSocket + SSRF probes
 offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization --mode deep
+
+# Deep mode with LLM judge for attack-path narrative
+offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization --mode deep --llm-judge
 
 # Export attack report
 offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization \
@@ -139,7 +145,8 @@ The `--i-have-authorization` flag is **required** — the CLI will exit immediat
 | `--tls` | Use HTTPS |
 | `--header KEY:VALUE` | Extra HTTP header (repeatable) |
 | `--timeout FLOAT` | Per-request timeout in seconds (default: `15.0`) |
-| `--format text\|json\|csv` | Output format (default: `text`) |
+| `--llm-judge` | Use LLM judge to build attack-path narrative for succeeded attacks |
+| `--format console\|json` | Output format (default: `console`) |
 | `--output FILE` | Write results to file |
 
 ---
@@ -159,6 +166,7 @@ async def main():
         timeout=15.0,
         use_tls=False,
         headers={"Authorization": "Bearer <token>"},  # optional
+        judge=LLMJudge.from_env(),  # optional: enriches MEDIUM/LOW findings
     )
     result = await scanner.scan()
 
@@ -197,7 +205,7 @@ async def main():
 
     # Step 2 — active attack (authorized=True required)
     try:
-        attacker = OpenClawAttacker(authorized=True)
+        attacker = OpenClawAttacker(authorized=True, judge=LLMJudge.from_env())
     except AuthorizationRequired:
         print("Authorization not granted.")
         return
@@ -236,6 +244,36 @@ with open("scan.json", "w") as f:
 # Attack report to JSON file
 with open("attack.json", "w") as f:
     json.dump(report.model_dump(mode="json"), f, indent=2)
+```
+
+---
+
+## LLM Judge Integration
+
+Pass `--llm-judge` (CLI) or `judge=LLMJudge.from_env()` (Python API) to enable AI-assisted
+triage. The judge evaluates each **MEDIUM** and **LOW** finding and annotates it with:
+
+```python
+class OpenClawVulnerability(BaseModel):
+    # ... standard fields ...
+    llm_confidence: float | None = None   # 0.0–1.0 confidence score
+    llm_reasoning: str = ""               # judge's explanation
+```
+
+Findings with `llm_confidence > 0.7` and `vulnerable=True` are automatically upgraded:
+`LOW` → `MEDIUM`. The attacker's `_enrich_with_llm()` appends an attack-path narrative to
+the first succeeded result's `evidence` field.
+
+```bash
+# Configure provider — any one env var is sufficient
+# Priority: Gemini > Anthropic > OpenAI
+export GEMINI_API_KEY="AIza..."       # 1st priority
+export ANTHROPIC_API_KEY="sk-ant-..." # 2nd priority
+export OPENAI_API_KEY="sk-..."        # 3rd priority
+
+# Or use a local OpenAI-compatible endpoint (Ollama, LM Studio, etc.)
+export OFFSEC_LLM_BASE_URL="http://localhost:11434/v1"
+export OFFSEC_LLM_MODEL="llama3"
 ```
 
 ---

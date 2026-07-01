@@ -59,13 +59,14 @@ class OpenClawAttacker:
     Requires authorized=True. Will refuse all operations if not authorized.
     """
 
-    def __init__(self, authorized: bool = False) -> None:
+    def __init__(self, authorized: bool = False, judge: object | None = None) -> None:
         if not authorized:
             raise AuthorizationRequired(
                 "OpenClawAttacker requires authorized=True. "
                 "Only use this against systems you have explicit written authorization to test."
             )
         self.authorized = True
+        self._judge = judge
         logger.warning(AUTHORIZATION_BANNER)
 
     async def attack(
@@ -142,6 +143,11 @@ class OpenClawAttacker:
 
         report.attack_duration = time.monotonic() - start
         report.attacked_at = datetime.now(timezone.utc)
+
+        # Optional LLM enrichment
+        if self._judge and getattr(self._judge, "provider", None):
+            self._enrich_with_llm(report)
+
         return report
 
     # ------------------------------------------------------------------
@@ -363,3 +369,23 @@ class OpenClawAttacker:
                 )
             )
         return results
+
+    def _enrich_with_llm(self, report: OpenClawAttackReport) -> None:
+        """Use LLM judge to build an attack-path narrative for succeeded attacks."""
+        if not self._judge:
+            return
+        succeeded = report.successful_attacks
+        if not succeeded:
+            return
+        try:
+            summary = "; ".join(f"{r.attack_id}:{r.description}" for r in succeeded[:5])
+            verdict = self._judge.evaluate(
+                category="OpenClaw attack-path",
+                probe=summary,
+                response=f"{len(succeeded)} attack(s) succeeded",
+            )
+            reason = verdict.get("reason", "")
+            if reason:
+                succeeded[0].evidence += f" [LLM analysis: {reason}]"
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("LLM enrichment error: %s", exc)

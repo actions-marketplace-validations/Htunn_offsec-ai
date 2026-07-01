@@ -39,25 +39,25 @@
 |---------|-------------|
 | ☸️ **Kubernetes Scanner** | Five-phase black-box scan of exposed K8s components: kube-apiserver (6443/8080), kubelet (10250/10255), etcd (2379), scheduler, controller-manager, cAdvisor, dashboard |
 | 📋 **OWASP K8s Top 10 (2025)** | Findings mapped to K01–K10; 10+ advisories (`K8S-ADV-###`) + real CVEs (CVE-2018-1002105, CVE-2019-11253, CVE-2020-8558, CVE-2021-25741, CVE-2022-3294) |
-| 🤖 **Optional LLM Judge** | `LLMJudge` triages ambiguous findings and generates remediation advice; rule-based fallback when no API key is set |
+| 🤖 **Optional LLM Judge** | `LLMJudge` triages ambiguous findings and generates remediation advice; supports OpenAI, Anthropic, and Google Gemini; rule-based fallback when no API key is set |
 | ⚔️ **Kubernetes Attacker** | Authorized red-team probes: anonymous API reads, kubelet `/exec` command execution, Secret extraction, SelfSubjectAccessReview privilege audit, etcd key dump, cloud metadata SSRF (K08) |
 
 ### New in v2.1.0 — OpenClaw Gateway Security
 
 | Feature | Description |
 |---------|-------------|
-| 🦞 **OpenClaw Scanner** | Five-phase passive assessment of [OpenClaw](https://github.com/openclaw/openclaw) AI-gateway deployments: fingerprint, endpoint enumeration, auth posture, config review, CVE/misconfiguration matching |
+| 🦞 **OpenClaw Scanner** | Six-phase passive assessment of [OpenClaw](https://github.com/openclaw/openclaw) AI-gateway deployments: fingerprint (including HTML-based detection for OpenClaw 2026.x), endpoint enumeration, auth posture, config review, CVE/misconfiguration matching, optional LLM triage |
 | 🔟 **10 Advisory Checks** | OCL-ADV-001 through OCL-ADV-010 — from unauthenticated REST/WebSocket access to insecure sandbox modes, DM policy exposure, and API-key leakage via config endpoint |
-| ⚔️ **OpenClaw Attacker** | Authorized active exploitation: prompt injection, SSRF via webhook, session history dump, WebSocket message injection |
+| ⚔️ **OpenClaw Attacker** | Authorized active exploitation: prompt injection, SSRF via webhook, session history dump, WebSocket message injection; optional `--llm-judge` for attack-path narrative |
 
 ### New in v2.0.0 — AI / LLM Security
 
 | Feature | Description |
 |---------|-------------|
 | 🤖 **AI OWASP Top 10 Scanner** | Black-box probing of live LLM/chat API endpoints for all 10 OWASP LLM categories |
-| 🔬 **Rule-based + LLM Judge** | Pattern-based detection + optional LLM judge (OpenAI/Anthropic) via `[ai]` extra |
+| 🔬 **Rule-based + LLM Judge** | Pattern-based detection + optional LLM judge (OpenAI / Anthropic / Gemini) via `[ai]` extra |
 | 🔌 **MCP Security Scanner** | Enumerate tools/resources/prompts, detect CVEs, check auth posture (HTTP, SSE, stdio) |
-| ⚔️ **MCP Attacker** | Authorized active testing: auth bypass, path traversal, tool injection, command injection |
+| ⚔️ **MCP Attacker** | Authorized active testing: auth bypass, path traversal, tool injection, command injection; optional `--llm-judge` for attack-path narrative |
 | 🛡️ **Authorization Gating** | `MCPAttacker(authorized=False)` raises `AuthorizationRequired`; `--i-have-authorization` flag required at CLI |
 
 ### Infrastructure Security
@@ -81,7 +81,7 @@
 # Core toolkit
 pip install offsec-ai
 
-# With optional LLM judge (OpenAI / Anthropic)
+# With optional LLM judge (OpenAI / Anthropic / Gemini)
 pip install "offsec-ai[ai]"
 ```
 
@@ -124,12 +124,17 @@ offsec-ai mcp-attack https://mcp.example.com/mcp --i-have-authorization
 # OpenClaw gateway security
 offsec-ai openclaw-scan 192.168.1.10
 offsec-ai openclaw-scan gateway.example.com --port 18789 --tls
+offsec-ai openclaw-scan 192.168.1.10 --llm-judge
 offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization --mode deep
+offsec-ai openclaw-attack 192.168.1.10 --i-have-authorization --mode deep --llm-judge
 
 # Kubernetes cluster security
 offsec-ai k8s-scan 192.168.1.100
 offsec-ai k8s-scan k8s.example.com --port 6443 --port 10250 --llm-judge
+# kubectl proxy makes the API server reachable on plain HTTP locally:
+offsec-ai k8s-scan 127.0.0.1 --port 8001 --llm-judge
 offsec-ai k8s-attack 192.168.1.100 --i-have-authorization --mode deep
+offsec-ai k8s-attack 127.0.0.1 --port 8001 --i-have-authorization --llm-judge
 
 # Infrastructure
 offsec-ai scan example.com
@@ -221,7 +226,7 @@ offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions \
 # JSON output
 offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions --output results.json
 
-# Enable LLM judge (requires OPENAI_API_KEY or ANTHROPIC_API_KEY env var)
+# Enable LLM judge (requires OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY env var)
 offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
 ```
 
@@ -274,9 +279,12 @@ Install the `[ai]` extra and set an API key to enable smarter semantic detection
 
 ```bash
 pip install "offsec-ai[ai]"
-export OPENAI_API_KEY="sk-..."   # or ANTHROPIC_API_KEY
+export GEMINI_API_KEY="AIza..."       # Google Gemini  (1st priority)
+export ANTHROPIC_API_KEY="sk-ant-..." # or Anthropic   (2nd priority)
+export OPENAI_API_KEY="sk-..."        # or OpenAI      (3rd priority)
 ```
 
+If multiple keys are set, Gemini is used first, then Anthropic, then OpenAI.
 Without the extra, detection falls back to rule-based pattern matching.
 
 ---
@@ -314,8 +322,9 @@ offsec-ai mcp-scan https://mcp.example.com/mcp \
 # JSON output
 offsec-ai mcp-scan https://mcp.example.com/mcp --output mcp-scan.json
 
-# Verbose output
-offsec-ai mcp-scan https://mcp.example.com/mcp --verbose
+# With LLM judge for enriched triage
+offsec-ai mcp-scan https://mcp.example.com/mcp --llm-judge
+offsec-ai mcp-attack https://mcp.example.com/mcp --i-have-authorization --llm-judge
 ```
 
 ### Python API
@@ -330,6 +339,7 @@ async def main():
         target="https://mcp.example.com/mcp",
         transport=MCPTransport.HTTP,
         headers={"Authorization": "Bearer token"},
+        judge=LLMJudge.from_env(),  # optional: enriches MEDIUM/LOW findings
     )
     result = await scanner.scan()
 

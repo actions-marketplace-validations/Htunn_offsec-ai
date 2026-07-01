@@ -62,6 +62,7 @@ class OpenClawScanner:
         headers: dict[str, str] | None = None,
         timeout: float = 15.0,
         use_tls: bool = False,
+        judge: object | None = None,
     ) -> None:
         """
         Args:
@@ -70,6 +71,7 @@ class OpenClawScanner:
             headers:  Extra HTTP headers (e.g. Authorization).
             timeout:  Per-request timeout in seconds.
             use_tls:  Use HTTPS instead of HTTP.
+            judge:    Optional LLMJudge instance for AI-assisted triage.
         """
         scheme = "https" if use_tls else "http"
         self.base_url = f"{scheme}://{target}:{port}"
@@ -77,6 +79,7 @@ class OpenClawScanner:
         self.timeout = timeout
         self._target = target
         self._port = port
+        self._judge = judge
 
     # ------------------------------------------------------------------
     # Public API
@@ -117,6 +120,10 @@ class OpenClawScanner:
                 # Phase 5: Match CVEs and generate vulnerabilities
                 self._match_vulnerabilities(result)
 
+                # Phase 6: Optional LLM triage
+                if self._judge and getattr(self._judge, "provider", None):
+                    self._phase_llm_triage(result)
+
         except httpx.ConnectError as exc:
             result.error = f"Connection refused or target unreachable: {exc}"
         except httpx.TimeoutException:
@@ -156,6 +163,18 @@ class OpenClawScanner:
             logger.debug("GET %s failed: %s", path, exc)
             return 0, None, {}
 
+    async def _get_raw(
+        self, client: httpx.AsyncClient, path: str
+    ) -> tuple[int, str, dict[str, str]]:
+        """Perform GET and return (status_code, raw_text, headers)."""
+        try:
+            resp = await client.get(self._url(path))
+            raw = resp.content[:_MAX_RESPONSE_BYTES].decode("utf-8", errors="replace")
+            return resp.status_code, raw, dict(resp.headers)
+        except (httpx.RequestError, httpx.TimeoutException) as exc:
+            logger.debug("GET_RAW %s failed: %s", path, exc)
+            return 0, "", {}
+
     async def _fingerprint(
         self, client: httpx.AsyncClient, result: OpenClawScanResult
     ) -> bool:
@@ -178,6 +197,11 @@ class OpenClawScanner:
                         raw=body,
                     )
                 return True
+
+        # Fallback: check HTML title of the root page for modern openclaw versions
+        root_status, root_text, _ = await self._get_raw(client, "/")
+        if root_status not in (0, 404, 502, 503) and self._matches_fingerprint_html(root_text):
+            return True
 
         return False
 
@@ -220,6 +244,23 @@ class OpenClawScanner:
                 if "openclaw" in v_str or "molty" in v_str:
                     return True
 
+        return False
+
+    def _matches_fingerprint_html(
+        self,
+        html_text: str,
+    ) -> bool:
+        """Return True if raw HTML text contains OpenClaw-specific markers."""
+        if not html_text:
+            return False
+        text_lower = html_text.lower()
+        for fp in OPENCLAW_FINGERPRINTS:
+            if "html_title" in fp and fp["match_type"] == "present":
+                if fp["html_title"].lower() in text_lower:
+                    return True
+        # Generic product name check in page title
+        if "<title>openclaw" in text_lower or "openclaw control" in text_lower:
+            return True
         return False
 
     async def _enumerate_endpoints(
@@ -469,3 +510,26 @@ class OpenClawScanner:
                     ],
                 )
             )
+
+    def _phase_llm_triage(self, result: OpenClawScanResult) -> None:
+        """Use LLM judge to enrich MEDIUM/LOW OpenClaw findings."""
+        ambiguous = {OpenClawVulnSeverity.MEDIUM, OpenClawVulnSeverity.LOW}
+        for vuln in result.vulnerabilities:
+            if vuln.severity not in ambiguous:
+                continue
+            if not self._judge:
+                continue
+            try:
+                verdict = self._judge.evaluate(
+                    category=vuln.vuln_id,
+                    probe=vuln.title,
+                    response=vuln.evidence or vuln.description,
+                )
+                vuln.llm_confidence = float(verdict.get("confidence", 0.0))
+                vuln.llm_reasoning = str(verdict.get("reason", ""))
+                if verdict.get("vulnerable") and vuln.llm_confidence > 0.7:
+                    if vuln.severity == OpenClawVulnSeverity.LOW:
+                        vuln.severity = OpenClawVulnSeverity.MEDIUM
+                        vuln.evidence += " [LLM: upgraded from LOW]"
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("LLM triage error for %s: %s", vuln.vuln_id, exc)

@@ -267,6 +267,10 @@ OPENCLAW_FINGERPRINTS: list[dict] = [
     {"body_key": "openclaw_version", "match_type": "present"},
     {"body_key": "version", "match_type": "contains", "value": "openclaw"},
     {"body_key": "status", "match_type": "contains", "value": "openclaw"},
+    # OpenClaw 2026.x gateway: /health returns {"ok":true,"status":"live"}
+    # combined with HTML title "OpenClaw Control" on /
+    {"body_key": "ok", "match_type": "present"},
+    {"html_title": "OpenClaw Control", "match_type": "present"},
 ]
 
 # Paths to probe during fingerprinting

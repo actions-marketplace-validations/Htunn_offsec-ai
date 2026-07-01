@@ -31,6 +31,9 @@ offsec-ai k8s-scan 192.168.1.100 --format json --output k8s-scan.json
 # Authorized red-team attack (safe mode — passive reads, no destructive ops)
 offsec-ai k8s-attack 192.168.1.100 --i-have-authorization
 
+# Attack with LLM judge for enriched attack-path narrative
+offsec-ai k8s-attack 192.168.1.100 --i-have-authorization --llm-judge
+
 # Deep mode — adds kubelet /exec, Secret extraction, etcd dump, cloud IMDS SSRF
 offsec-ai k8s-attack 192.168.1.100 --i-have-authorization --mode deep
 
@@ -38,6 +41,16 @@ offsec-ai k8s-attack 192.168.1.100 --i-have-authorization --mode deep
 offsec-ai k8s-attack 192.168.1.100 --i-have-authorization \
     --mode deep --format json --output k8s-attack.json
 ```
+
+> **kubectl proxy tip:** If your kubeconfig points to a tunnel or remote port that is not
+> locally reachable, use `kubectl proxy --port=8001` to expose the API server as plain HTTP
+> on `http://127.0.0.1:8001`. Then scan with `--port 8001` — no TLS, no credentials needed:
+>
+> ```bash
+> kubectl proxy --port=8001 &
+> offsec-ai k8s-scan 127.0.0.1 --port 8001 --llm-judge
+> offsec-ai k8s-attack 127.0.0.1 --port 8001 --i-have-authorization
+> ```
 
 ---
 
@@ -351,10 +364,11 @@ The judge also enriches `remediation` with context-aware fix guidance. It falls 
 rule-based detection automatically when no API key is configured.
 
 ```bash
-# Configure judge provider via env var (any one is sufficient)
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-export GEMINI_API_KEY="..."
+# Configure provider — any one env var is sufficient
+# Priority: Gemini > Anthropic > OpenAI
+export GEMINI_API_KEY="AIza..."       # 1st priority
+export ANTHROPIC_API_KEY="sk-ant-..." # 2nd priority
+export OPENAI_API_KEY="sk-..."        # 3rd priority
 
 # Or via custom OpenAI-compatible endpoint (Ollama, LM Studio, etc.)
 export OFFSEC_LLM_BASE_URL="http://localhost:11434/v1"

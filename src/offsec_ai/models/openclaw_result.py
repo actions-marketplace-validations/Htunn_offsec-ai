@@ -61,6 +61,8 @@ class OpenClawVulnerability(BaseModel):
     remediation: str = ""
     references: list[str] = Field(default_factory=list)
     discovered_at: datetime = Field(default_factory=datetime.utcnow)
+    llm_confidence: float | None = None
+    llm_reasoning: str = ""
 
 
 class OpenClawAccessibleEndpoint(BaseModel):

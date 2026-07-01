@@ -2395,8 +2395,9 @@ def _get_severity_color(severity: SeverityLevel) -> str:
               help="Model name to pass in OpenAI-format requests.")
 @click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE",
               help="Extra HTTP headers, e.g. --header 'Authorization:Bearer sk-...'")
-@click.option("--judge", is_flag=True, default=False,
-              help="Use LLM judge (requires OPENAI_API_KEY or ANTHROPIC_API_KEY env var).")
+@click.option("--llm-judge", "judge", is_flag=True, default=False,
+              help="Use LLM judge to evaluate findings. Auto-detects provider: "
+                   "GEMINI_API_KEY (1st), ANTHROPIC_API_KEY (2nd), OPENAI_API_KEY (3rd).")
 @click.option("--format", "output_format", type=click.Choice(["console", "json"]),
               default="console", show_default=True)
 @click.option("--output", "-o", type=click.Path(), default=None,
@@ -2433,8 +2434,8 @@ async def _run_ai_owasp_scan(
             judge = j
             console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
         else:
-            console.print("[yellow]Warning: --judge flag set but no provider API key found. "
-                          "Set OPENAI_API_KEY or ANTHROPIC_API_KEY.[/yellow]")
+            console.print("[yellow]Warning: --llm-judge flag set but no provider API key found. "
+                          "Set GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.[/yellow]")
 
     scanner = LLMOwaspScanner(
         endpoint=target_url,
@@ -2532,7 +2533,9 @@ def _display_ai_owasp_result(result: LLMScanResult) -> None:
               default="console", show_default=True)
 @click.option("--output", "-o", type=click.Path(), default=None,
               help="Save JSON result to file.")
-def mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_verify, output_format, output):
+@click.option("--llm-judge", "use_judge", is_flag=True, default=False,
+              help="Use LLM judge (auto-detected provider) to enrich findings.")
+def mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_verify, output_format, output, use_judge):
     """Scan an MCP (Model Context Protocol) endpoint for security vulnerabilities and CVEs.
 
     TARGET is the MCP endpoint URL (HTTP/SSE) or 'stdio://local' for a local server.
@@ -2546,15 +2549,24 @@ def mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_verify, outp
         extra_headers=list(extra_headers), timeout=timeout,
         no_tls_verify=no_tls_verify,
         output_format=output_format, output=output,
+        use_judge=use_judge,
     ))
 
 
-async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_verify, output_format, output):
+async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_verify, output_format, output, use_judge=False):
     headers = {}
     for h in extra_headers:
         if ":" in h:
             k, v = h.split(":", 1)
             headers[k.strip()] = v.strip()
+
+    judge = None
+    if use_judge:
+        judge = LLMJudge.from_env()
+        if not judge.is_available():
+            console.print("[yellow]Warning: --llm-judge set but no provider found. "
+                          "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
+            judge = None
 
     scanner = MCPScanner(
         target=target,
@@ -2563,6 +2575,7 @@ async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_v
         headers=headers,
         timeout=timeout,
         verify_tls=not no_tls_verify,
+        judge=judge,
     )
 
     with Progress(
@@ -2677,8 +2690,10 @@ def _display_mcp_scan_result(result: MCPScanResult) -> None:
 @click.option("--format", "output_format", type=click.Choice(["console", "json"]),
               default="console", show_default=True)
 @click.option("--output", "-o", type=click.Path(), default=None)
+@click.option("--llm-judge", "use_judge", is_flag=True, default=False,
+              help="Use LLM judge (auto-detected provider) to enrich attack findings.")
 def mcp_attack(target, authorized, transport, cmd, mode, extra_headers, timeout,
-               output_format, output):
+               output_format, output, use_judge):
     """Perform authorized active security testing against an MCP endpoint.
 
     \b
@@ -2702,16 +2717,25 @@ def mcp_attack(target, authorized, transport, cmd, mode, extra_headers, timeout,
         target=target, transport=transport, cmd=list(cmd),
         mode=mode, extra_headers=list(extra_headers),
         timeout=timeout, output_format=output_format, output=output,
+        use_judge=use_judge,
     ))
 
 
 async def _run_mcp_attack(target, transport, cmd, mode, extra_headers, timeout,
-                           output_format, output):
+                           output_format, output, use_judge=False):
     headers = {}
     for h in extra_headers:
         if ":" in h:
             k, v = h.split(":", 1)
             headers[k.strip()] = v.strip()
+
+    judge = None
+    if use_judge:
+        judge = LLMJudge.from_env()
+        if not judge.is_available():
+            console.print("[yellow]Warning: --llm-judge set but no provider found. "
+                          "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
+            judge = None
 
     # First run a scan to guide attacks
     scan_result = None
@@ -2724,7 +2748,7 @@ async def _run_mcp_attack(target, transport, cmd, mode, extra_headers, timeout,
         except Exception:
             pass
 
-    attacker = MCPAttacker(authorized=True)
+    attacker = MCPAttacker(authorized=True, judge=judge)
 
     with Progress(
         SpinnerColumn(),
@@ -2804,7 +2828,9 @@ def _display_mcp_attack_report(report: MCPAttackReport) -> None:
               default="console", show_default=True)
 @click.option("--output", "-o", type=click.Path(), default=None,
               help="Save JSON result to file.")
-def openclaw_scan(target, port, use_tls, extra_headers, timeout, output_format, output):
+@click.option("--llm-judge", "use_judge", is_flag=True, default=False,
+              help="Use LLM judge (auto-detected provider) to enrich findings.")
+def openclaw_scan(target, port, use_tls, extra_headers, timeout, output_format, output, use_judge):
     """Scan an OpenClaw gateway for misconfigurations and CVEs.
 
     TARGET is the hostname or IP address of the OpenClaw gateway.
@@ -2823,6 +2849,7 @@ def openclaw_scan(target, port, use_tls, extra_headers, timeout, output_format, 
         target=target, port=port, use_tls=use_tls,
         extra_headers=list(extra_headers), timeout=timeout,
         output_format=output_format, output=output,
+        use_judge=use_judge,
     ))
 
 
@@ -2834,6 +2861,7 @@ async def _run_openclaw_scan(
     timeout: float,
     output_format: str,
     output: Optional[str],
+    use_judge: bool = False,
 ) -> None:
     from .models.openclaw_result import OpenClawVulnSeverity
 
@@ -2843,12 +2871,21 @@ async def _run_openclaw_scan(
             k, v = h.split(":", 1)
             headers[k.strip()] = v.strip()
 
+    judge = None
+    if use_judge:
+        judge = LLMJudge.from_env()
+        if not judge.is_available():
+            console.print("[yellow]Warning: --llm-judge set but no provider found. "
+                          "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
+            judge = None
+
     scanner = OpenClawScanner(
         target=target,
         port=port,
         headers=headers,
         timeout=timeout,
         use_tls=use_tls,
+        judge=judge,
     )
 
     with Progress(
@@ -2964,8 +3001,10 @@ def _display_openclaw_scan_result(result) -> None:
               default="console", show_default=True)
 @click.option("--output", "-o", type=click.Path(), default=None,
               help="Save JSON report to file.")
+@click.option("--llm-judge", "use_judge", is_flag=True, default=False,
+              help="Use LLM judge (auto-detected provider) to enrich attack findings.")
 def openclaw_attack(target, port, use_tls, mode, extra_headers, timeout,
-                    authorized, output_format, output):
+                    authorized, output_format, output, use_judge):
     """Actively attack an OpenClaw gateway (AUTHORIZED USE ONLY).
 
     ⚠  THIS COMMAND PERFORMS ACTIVE ATTACKS. Only use against systems
@@ -2996,6 +3035,7 @@ def openclaw_attack(target, port, use_tls, mode, extra_headers, timeout,
         target=target, port=port, use_tls=use_tls, mode=mode,
         extra_headers=list(extra_headers), timeout=timeout,
         output_format=output_format, output=output,
+        use_judge=use_judge,
     ))
 
 
@@ -3008,6 +3048,7 @@ async def _run_openclaw_attack(
     timeout: float,
     output_format: str,
     output: Optional[str],
+    use_judge: bool = False,
 ) -> None:
     from .models.openclaw_result import OpenClawVulnSeverity
 
@@ -3017,10 +3058,18 @@ async def _run_openclaw_attack(
             k, v = h.split(":", 1)
             headers[k.strip()] = v.strip()
 
+    judge = None
+    if use_judge:
+        judge = LLMJudge.from_env()
+        if not judge.is_available():
+            console.print("[yellow]Warning: --llm-judge set but no provider found. "
+                          "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
+            judge = None
+
     # First scan the target
     console.print(f"[yellow]Phase 1: Scanning {target}:{port}...[/yellow]")
     scanner = OpenClawScanner(target=target, port=port, headers=headers,
-                               timeout=timeout, use_tls=use_tls)
+                               timeout=timeout, use_tls=use_tls, judge=judge)
 
     with Progress(
         SpinnerColumn(),
@@ -3046,7 +3095,7 @@ async def _run_openclaw_attack(
     console.print(f"\n[yellow]Phase 2: Attacking in [{mode.upper()}] mode...[/yellow]")
 
     try:
-        attacker = OpenClawAttacker(authorized=True)
+        attacker = OpenClawAttacker(authorized=True, judge=judge)
     except AuthorizationRequired as exc:
         console.print(f"[red]{exc}[/red]")
         raise SystemExit(1)

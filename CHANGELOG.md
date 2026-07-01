@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-07-01
+
+### Added — LLM Judge Integration Across All Tools
+
+- **LLM Judge** wired into MCP scanner (`mcp-scan`) and attacker (`mcp-attack`):
+  - `MCPScanner(judge=judge)` — Phase 5 LLM triage upgrades LOW→MEDIUM findings when `llm_confidence > 0.7`
+  - `MCPAttacker(authorized=True, judge=judge)` — `_enrich_with_llm()` appends LLM analysis to triggered attack results
+  - New fields on `MCPVulnerability`: `llm_confidence: float | None`, `llm_reasoning: str`
+
+- **LLM Judge** wired into OpenClaw scanner (`openclaw-scan`) and attacker (`openclaw-attack`):
+  - `OpenClawScanner(judge=judge)` — Phase 6 LLM triage (new phase) upgrades LOW→MEDIUM findings when `llm_confidence > 0.7`
+  - `OpenClawAttacker(authorized=True, judge=judge)` — `_enrich_with_llm()` appends LLM analysis to attack results
+  - New fields on `OpenClawVulnerability`: `llm_confidence: float | None`, `llm_reasoning: str`
+
+- `--llm-judge` CLI flag added to `mcp-scan`, `mcp-attack`, `openclaw-scan`, `openclaw-attack`
+  (k8s and ai-owasp-scan already had it; all 7 commands now consistent)
+
+### Changed
+
+- **Removed Azure OpenAI support** — `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_ENDPOINT` no longer
+  detected; `_evaluate_azure()` removed from `LLMJudge`
+- **Provider priority order changed**: Gemini (highest) → Anthropic → OpenAI (lowest)
+  - `_detect_provider()` now checks `GEMINI_API_KEY` first, then `ANTHROPIC_API_KEY`, then `OPENAI_API_KEY`
+  - Docstring and all CLI `--llm-judge` help text updated to reflect new priority
+- `--judge` flag on `ai-owasp-scan` renamed to `--llm-judge` for consistency across all commands
+- All warning messages updated to list providers as: `GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY`
+- `pyproject.toml`: version bumped `2.3.0` → `2.4.0`
+- `README.md`, `docs/k8s.md`, `docs/openclaw.md`, `docs/owasp-scanner.md` updated with new
+  provider priority order, `--llm-judge` flag on all commands, and Gemini examples
+
+---
+
 ## [2.3.0] - 2026-06-30
 
 ### Added — Kubernetes Cluster Security Scanner and Attacker
