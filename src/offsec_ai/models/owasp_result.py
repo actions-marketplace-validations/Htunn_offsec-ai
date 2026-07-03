@@ -48,6 +48,8 @@ class OwaspFinding(BaseModel):
     cwe_id: Optional[int] = Field(None, description="Common Weakness Enumeration ID")
     score: int = Field(..., description="Numeric score based on severity")
     evidence: Optional[str] = Field(None, description="Evidence or example of the finding")
+    llm_reasoning: Optional[str] = Field(None, description="LLM judge reasoning for this finding")
+    llm_confidence: Optional[float] = Field(None, description="LLM judge confidence score (0.0–1.0)")
 
     model_config = ConfigDict()
 

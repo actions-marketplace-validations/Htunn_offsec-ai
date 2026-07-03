@@ -7,7 +7,7 @@ and optional active probing.
 
 import asyncio
 import time
-from typing import List, Optional, Set
+from typing import Any, List, Optional, Set
 from urllib.parse import urlparse
 
 import httpx
@@ -45,6 +45,7 @@ class OwaspScanner:
         mode: str = "safe",
         categories: Optional[List[str]] = None,
         timeout: float = 10.0,
+        judge: Any | None = None,
     ):
         """
         Initialize OWASP scanner.
@@ -53,9 +54,11 @@ class OwaspScanner:
             mode: Scanning mode ('safe' or 'deep')
             categories: Specific categories to scan (default: based on mode)
             timeout: Request timeout in seconds
+            judge: Optional LLMJudge instance to triage MEDIUM/LOW findings
         """
         self.mode = ScanMode(mode)
         self.timeout = timeout
+        self.judge = judge
         
         # Determine which categories to scan
         if categories:
@@ -109,11 +112,34 @@ class OwaspScanner:
             category.calculate_grade()
         
         result.calculate_overall_grade()
-        
+
+        # Optional LLM triage of MEDIUM/LOW findings
+        if self.judge:
+            await self._triage_with_llm(result.all_findings)
+
         # Record scan duration
         result.scan_duration = time.time() - start_time
         
         return result
+
+    async def _triage_with_llm(self, findings: List[OwaspFinding]) -> None:
+        """Enrich MEDIUM/LOW findings with LLM judge reasoning."""
+        triage_severities = {SeverityLevel.MEDIUM, SeverityLevel.LOW}
+        for finding in findings:
+            if finding.severity not in triage_severities:
+                continue
+            try:
+                context = f"{finding.title}: {finding.description}"
+                evidence = finding.evidence or ""
+                eval_result = await self.judge.evaluate(context, evidence)
+                finding.llm_reasoning = eval_result.reasoning
+                finding.llm_confidence = eval_result.confidence
+                # Upgrade LOW → MEDIUM if judge is confident
+                if finding.severity == SeverityLevel.LOW and eval_result.confidence > 0.7:
+                    finding.severity = SeverityLevel.MEDIUM
+                    finding.score = 5  # MEDIUM score
+            except Exception:
+                pass
     
     async def _scan_category(
         self,

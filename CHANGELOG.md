@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-07-03
+
+### Added
+
+- **`--llm-judge` support for `owasp-scan`** — OWASP Web Scanner now integrates LLM judge triage:
+  - `OwaspScanner(judge=judge)` constructor parameter accepts a `LLMJudge` instance
+  - `_triage_with_llm(findings)` internal method: iterates MEDIUM/LOW findings, calls `judge.evaluate()`, stores `llm_reasoning` and `llm_confidence`; promotes LOW→MEDIUM when `llm_confidence > 0.7`
+  - `--llm-judge` CLI flag added to `owasp-scan` command
+  - Verbose mode displays `LLM (X%): reasoning` per finding in the detailed findings table
+
+- **New fields on `OwaspFinding` model** (Pydantic v2, optional):
+  - `llm_reasoning: str | None` — LLM judge reasoning text for this finding
+  - `llm_confidence: float | None` — Confidence score (0.0–1.0); > 0.7 triggers severity promotion
+
+- **Universal "powered by" display across all 9 `--llm-judge` commands**: each command now shows:
+  - `LLM Judge: gemini` (or `openai` / `anthropic` / `Disabled`) inside the Rich result Panel
+  - `LLM Judge powered by: gemini` as a formatted footer line after the Panel
+  - Applies to: `owasp-scan`, `ai-owasp-scan`, `mcp-scan`, `mcp-attack`, `openclaw-scan`, `openclaw-attack`, `k8s-scan`, `k8s-attack`, `auth-scan`, `auth-attack`
+
+### Fixed
+
+- **`k8s-scan` / `k8s-attack` `LLMJudge` constructor bug**: both commands previously used `LLMJudge()` directly (invalid — no public no-arg constructor), bypassing `is_available()` and potentially crashing when no API key was set. Fixed to use the canonical `LLMJudge.from_env()` + `is_available()` pattern, consistent with all other commands.
+
+### Changed
+
+- `pyproject.toml`: version bumped `2.4.0` → `2.5.0`
+- `README.md`: v2.5.0 feature table added; OWASP scanner section updated with `--llm-judge` examples; CLI command table adds `auth-scan` / `auth-attack`
+- `docs/api.md`: `OwaspScanner` constructor docs updated (added `judge` param); `OwaspFinding` model docs updated (added `llm_reasoning`, `llm_confidence` fields); OWASP CLI usage block added
+
+---
+
 ## [2.4.0] - 2026-07-01
 
 ### Added — LLM Judge Integration Across All Tools
