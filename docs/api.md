@@ -13,8 +13,16 @@ pip install offsec-ai
 ```python
 import asyncio
 from offsec_ai import PortChecker, L7Detector, CertificateAnalyzer, MTLSChecker, HybridIdentityChecker, OwaspScanner
+from offsec_ai import AuthScanner, AuthAttacker, LLMJudge
 
 async def main():
+    # Auth protocol scan (OIDC / OAuth2 / SAML)
+    auth_scanner = AuthScanner("https://accounts.google.com")
+    auth_result = await auth_scanner.scan()
+    print(f"Auth Protocol : {auth_result.protocol.value}")
+    print(f"Provider      : {auth_result.provider_info.name}")
+    print(f"Vulnerabilities: {len(auth_result.all_vulns)}")
+
     # Basic port scanning
     scanner = PortChecker()
     result = await scanner.scan_host("example.com")
@@ -1285,6 +1293,27 @@ asyncio.run(check_hybrid_identity())
 
 ## OWASP Top 10 2021/2025 Vulnerability Scanner
 
+### CLI Usage
+
+```bash
+# Basic safe-mode scan
+offsec-ai owasp-scan example.com
+
+# Deep mode — all testable categories
+offsec-ai owasp-scan example.com --deep
+
+# Specific categories
+offsec-ai owasp-scan example.com -c A02,A05,A07 -t nginx --verbose
+
+# With LLM judge — shows "LLM Judge: gemini" in panel, "powered by" footer
+offsec-ai owasp-scan example.com --llm-judge
+offsec-ai owasp-scan example.com --deep --llm-judge --verbose
+
+# Export
+offsec-ai owasp-scan example.com -f json -o results.json
+offsec-ai owasp-scan example.com --deep -f pdf -o report.pdf
+```
+
 ### OwaspScanner
 
 The `OwaspScanner` class performs comprehensive security vulnerability scanning based on OWASP Top 10 2021 and 2025 categories.
@@ -1294,36 +1323,36 @@ The `OwaspScanner` class performs comprehensive security vulnerability scanning 
 ```python
 OwaspScanner(
     mode: str = "safe",
-    enabled_categories: Optional[List[str]] = None,
-    timeout: float = 10.0
+    categories: Optional[List[str]] = None,
+    timeout: float = 10.0,
+    judge: LLMJudge | None = None,
 )
 ```
 
 **Parameters:**
-- `mode` (str): Scan mode - either "safe" (passive scanning) or "deep" (active probing). Default: "safe"
-  - **Safe mode**: Only scans A02, A05, A06, A07 (passive header analysis) + OWASP 2025 categories (A03_2025, A10_2025)
-  - **Deep mode**: Scans all testable categories (excludes only A09)
-- `enabled_categories` (List[str], optional): Specific OWASP categories to scan. Supports both 2021 categories ("A02", "A05") and 2025 categories ("A03_2025", "A10_2025"). Can mix both versions. Overrides mode settings.
-- `timeout` (float): Timeout for HTTP requests in seconds. Default: 10.0
+- `mode` (str): Scan mode — `"safe"` (passive, default) or `"deep"` (active probing)
+  - **Safe mode**: scans A02, A05, A06, A07 passively
+  - **Deep mode**: scans all testable categories
+- `categories` (List[str], optional): Override mode — specific OWASP categories to scan (e.g. `["A02", "A05", "A03_2025"]`). Supports 2021 and 2025 categories. Overrides mode settings.
+- `timeout` (float): HTTP request timeout in seconds. Default: `10.0`
+- `judge` (LLMJudge | None): Optional LLM judge. When set, triages MEDIUM/LOW findings after all categories complete; upgrades LOW→MEDIUM when `llm_confidence > 0.7`. Default: `None` (rule-based only)
 
 **Example:**
 ```python
-from offsec_ai import OwaspScanner
+from offsec_ai import OwaspScanner, LLMJudge
 
-# Safe mode scanner (default) - includes 2021 and 2025 categories
+# Safe mode scanner (default)
 scanner = OwaspScanner(mode="safe", timeout=15.0)
 
 # Deep mode scanner
 deep_scanner = OwaspScanner(mode="deep")
 
-# Custom categories - 2021 only
-custom_scanner = OwaspScanner(enabled_categories=["A02", "A05", "A06"])
+# Custom categories
+custom_scanner = OwaspScanner(categories=["A02", "A05", "A06"])
 
-# Custom categories - 2025 only
-scanner_2025 = OwaspScanner(enabled_categories=["A03_2025", "A10_2025"])
-
-# Mixed 2021 and 2025 categories
-mixed_scanner = OwaspScanner(enabled_categories=["A02", "A05", "A03_2025", "A10_2025"])
+# With LLM judge (shows "LLM Judge: gemini" in panel, prints "powered by" footer)
+judge = LLMJudge.from_env()   # auto-detects GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY
+scanner_with_judge = OwaspScanner(mode="deep", judge=judge)
 ```
 
 #### Methods
@@ -1530,24 +1559,32 @@ if critical:
 Individual vulnerability finding.
 
 **Properties:**
-- `category` (str): OWASP category (e.g., "A02" for 2021, "A03_2025" for 2025)
+- `category` (str): OWASP category (e.g., `"A02"` for 2021, `"A03_2025"` for 2025)
 - `title` (str): Finding title
 - `description` (str): Detailed description
-- `severity` (SeverityLevel): CRITICAL, HIGH, MEDIUM, or LOW
-- `evidence` (str): Technical evidence or details
-- `cwe_ids` (List[str], optional): Related CWE identifiers
+- `severity` (SeverityLevel): `CRITICAL`, `HIGH`, `MEDIUM`, or `LOW` — may be upgraded LOW→MEDIUM by LLM judge when `llm_confidence > 0.7`
+- `evidence` (str | None): Technical evidence or details
+- `cwe_id` (int | None): Related CWE identifier
+- `score` (int): Numeric score derived from severity (CRITICAL=15, HIGH=10, MEDIUM=5, LOW=1)
+- `llm_reasoning` (str | None): LLM judge reasoning text. Populated when `--llm-judge` is active and finding severity is MEDIUM or LOW. `None` when judge is disabled or not applicable.
+- `llm_confidence` (float | None): LLM judge confidence score (0.0–1.0). When `> 0.7` on a LOW finding, severity is promoted to MEDIUM. `None` when judge is disabled.
 
 **Example:**
 ```python
+from offsec_ai import OwaspScanner, LLMJudge
+
+judge = LLMJudge.from_env()
+scanner = OwaspScanner(mode="deep", judge=judge)
+result = await scanner.scan("example.com")
+
 for finding in result.all_findings:
     print(f"[{finding.severity.value}] {finding.category}: {finding.title}")
     print(f"  Evidence: {finding.evidence}")
-    if finding.cwe_ids:
-        print(f"  CWE: {', '.join(finding.cwe_ids)}")
-    
-    # Check if it's a 2025 category
-    if "_2025" in finding.category:
-        print(f"  [OWASP 2025 Category]")
+    if finding.cwe_id:
+        print(f"  CWE: CWE-{finding.cwe_id}")
+    # Show LLM triage when available
+    if finding.llm_reasoning:
+        print(f"  LLM ({finding.llm_confidence:.0%}): {finding.llm_reasoning}")
 ```
 
 #### SeverityLevel
@@ -2636,6 +2673,244 @@ from offsec_ai.exceptions import (
 `AuthorizationRequired(module="MyModule")` produces:
 
 > `MyModule requires explicit authorization. Pass authorized=True only when you have written permission to test the target.`
+
+---
+
+## Auth Protocol Security Modules (OIDC / OAuth 2.0 / SAML)
+
+### AuthScanner
+
+Passive scanner that probes OIDC discovery documents, OAuth 2.0 authorization-server metadata, and SAML 2.0 SP/IdP metadata. No authentication or credentials required.
+
+```python
+from offsec_ai import AuthScanner, LLMJudge
+
+scanner = AuthScanner(
+    target="https://accounts.google.com",
+    protocol="auto",    # "auto" | "oidc" | "oauth2" | "saml"
+    headers={},         # optional extra request headers
+    timeout=15.0,
+    verify_tls=True,
+    judge=LLMJudge.from_env(),   # None = rule-based only
+)
+
+result = await scanner.scan()
+```
+
+#### Constructor Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `target` | `str` | required | Base URL of the IdP / authorization server |
+| `protocol` | `str` | `"auto"` | `"auto"`, `"oidc"`, `"oauth2"`, or `"saml"` |
+| `headers` | `dict` | `{}` | Additional HTTP request headers |
+| `timeout` | `float` | `15.0` | Per-request timeout in seconds |
+| `verify_tls` | `bool` | `True` | Whether to verify TLS certificates |
+| `judge` | `LLMJudge \| None` | `None` | Optional LLM judge for MEDIUM/LOW triage |
+
+#### `scan()` → `AuthScanResult`
+
+Runs all five scan phases and returns an `AuthScanResult`:
+
+1. **Protocol detection** — tries OIDC discovery then SAML metadata
+2. **Provider fingerprinting** — identifies Keycloak, Auth0, Okta, Entra ID, Google, Cognito, Shibboleth, Spring, GitLab, Ping Identity
+3. **Security posture analysis** — PKCE, implicit flow, state, alg=none, JWKS, SAML signing
+4. **CVE matching** — queries the built-in `AUTH_CVE_DB` (14 entries)
+5. **LLM triage** (optional) — enriches MEDIUM/LOW findings; upgrades LOW→MEDIUM if confidence > 0.7
+
+```python
+result = await scanner.scan()
+
+print(result.protocol.value)               # "oidc" | "oauth2" | "saml" | "unknown"
+print(result.provider_info.name)           # e.g. "google"
+print(result.provider_info.issuer)         # e.g. "https://accounts.google.com"
+print(result.provider_info.pkce_required)  # bool
+print(result.provider_info.implicit_flow_enabled)  # bool
+print(len(result.all_vulns))               # total vulnerability count
+print(len(result.critical_vulns))          # CRITICAL-only count
+print(result.cve_matches)                  # List[AuthCVEEntry]
+print(result.scan_duration)                # float (seconds)
+```
+
+---
+
+### AuthAttacker
+
+Authorized active attacker for auth protocol endpoints. Raises `AuthorizationRequired` if `authorized=False`.
+
+```python
+from offsec_ai import AuthAttacker
+from offsec_ai.exceptions import AuthorizationRequired
+
+try:
+    attacker = AuthAttacker(authorized=True)
+except AuthorizationRequired:
+    pass
+
+report = await attacker.attack(
+    target="https://auth.example.com",
+    mode="safe",     # "safe" | "deep"
+    judge=None,      # optional LLMJudge
+)
+```
+
+#### Constructor Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `authorized` | `bool` | `False` | Must be `True` to instantiate |
+| `headers` | `dict` | `{}` | Extra HTTP headers for all probes |
+| `timeout` | `float` | `15.0` | Per-request timeout |
+| `verify_tls` | `bool` | `True` | Whether to verify TLS certificates |
+
+#### `attack(target, mode, judge)` → `AuthAttackReport`
+
+| Attack | Safe | Deep | Description |
+|--------|------|------|-------------|
+| Open Redirect | ✅ | ✅ | 5 payloads targeting `redirect_uri` |
+| State Bypass | ✅ | ✅ | 3 payloads (missing / invalid / reused state) |
+| PKCE Bypass | ✅ | ✅ | 3 payloads (stripped / downgraded verifier) |
+| Scope Escalation | ❌ | ✅ | 3 payloads (admin/offline_access over-scoping) |
+| JWT alg=none | ❌ | ✅ | 2 forged JWTs with `alg:none` / `alg:None` |
+| Token Replay | ❌ | ✅ | 1 re-submit of a prior authorization code |
+| SAML XSW | ❌ | ✅ | XSW1, XSW2, comment_inject to ACS endpoints |
+| JWKS Confusion | ❌ | ✅ | RS256 → HS256 key confusion probe |
+
+```python
+report = await attacker.attack(target="https://auth.example.com", mode="deep")
+
+print(report.attacks_run)        # int — total probes sent
+print(report.attacks_triggered)  # int — probes that returned a triggering response
+for r in report.triggered_results:
+    print(f"[{r.severity.value}] {r.title}")
+    print(f"  payload   : {r.payload}")
+    print(f"  response  : {r.response[:120]}")
+    print(f"  evidence  : {r.evidence}")
+```
+
+---
+
+### Auth Result Models
+
+#### `AuthProtocol` (enum)
+
+```python
+from offsec_ai.models.auth_result import AuthProtocol
+
+AuthProtocol.OIDC     # "oidc"
+AuthProtocol.OAUTH2   # "oauth2"
+AuthProtocol.SAML     # "saml"
+AuthProtocol.UNKNOWN  # "unknown"
+```
+
+#### `AuthVulnSeverity` (enum)
+
+```python
+from offsec_ai.models.auth_result import AuthVulnSeverity
+
+AuthVulnSeverity.CRITICAL
+AuthVulnSeverity.HIGH
+AuthVulnSeverity.MEDIUM
+AuthVulnSeverity.LOW
+AuthVulnSeverity.INFO
+```
+
+#### `AuthProviderInfo`
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `name` | `str` | Detected provider name (`"google"`, `"keycloak"`, `"auth0"`, etc.) |
+| `version` | `str \| None` | Provider version if fingerprinted |
+| `issuer` | `str \| None` | Issuer URL from discovery document or SAML entityID |
+| `endpoints` | `dict[str, str]` | Known endpoint URLs (authorization, token, jwks, etc.) |
+| `supported_flows` | `list[str]` | OAuth flows advertised (`"code"`, `"implicit"`, etc.) |
+| `supported_algorithms` | `list[str]` | JWT signing algorithms from JWKS |
+| `pkce_supported` | `bool` | Whether PKCE is supported |
+| `pkce_required` | `bool` | Whether PKCE is required |
+| `implicit_flow_enabled` | `bool` | Whether implicit / hybrid flow is advertised |
+| `state_required` | `bool` | Whether state parameter enforcement is detected |
+| `raw` | `dict` | Full raw discovery / metadata document |
+
+#### `AuthVulnerability`
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `vuln_id` | `str` | Internal ID (`OFFSEC-AUTH-PKCE-001`, etc.) |
+| `cve_id` | `str \| None` | CVE identifier if applicable |
+| `severity` | `AuthVulnSeverity` | Finding severity |
+| `title` | `str` | Short vulnerability title |
+| `description` | `str` | Detailed description |
+| `evidence` | `str` | Observed evidence from the target |
+| `remediation` | `str` | Recommended fix |
+| `references` | `list[str]` | External links (RFCs, CVE pages, OWASP) |
+| `affected_component` | `str` | Protocol component affected |
+| `llm_confidence` | `float \| None` | LLM judge confidence (0.0–1.0) |
+| `llm_reasoning` | `str \| None` | LLM judge narrative |
+
+#### `AuthScanResult`
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `target` | `str` | Scanned URL |
+| `protocol` | `AuthProtocol` | Detected protocol |
+| `provider_info` | `AuthProviderInfo` | Provider fingerprint |
+| `vulnerabilities` | `list[AuthVulnerability]` | All findings |
+| `cve_matches` | `list[AuthCVEEntry]` | Matching CVEs from database |
+| `scan_duration` | `float` | Seconds taken |
+| `timestamp` | `str` | ISO 8601 timestamp |
+| `error` | `str \| None` | Error message on scan failure |
+
+Properties: `result.critical_vulns` → CRITICAL only; `result.all_vulns` → all severities.
+
+#### `AuthAttackResult`
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `attack_id` | `str` | Unique attack ID |
+| `target` | `str` | Target URL probed |
+| `payload` | `str` | Payload sent |
+| `response` | `str` | Raw response snippet |
+| `triggered` | `bool` | Whether a triggering response was observed |
+| `severity` | `AuthVulnSeverity` | Severity of this attack finding |
+| `title` | `str` | Attack title |
+| `evidence` | `str` | Evidence description |
+
+#### `AuthAttackReport`
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `target` | `str` | Attack target |
+| `authorized` | `bool` | Always `True` (enforced at construction) |
+| `protocol` | `AuthProtocol` | Protocol detected during Phase 1 scan |
+| `attacks_run` | `int` | Total probes sent |
+| `attacks_triggered` | `int` | Probes that elicited a triggering response |
+| `results` | `list[AuthAttackResult]` | Full result list |
+| `scan_duration` | `float` | Seconds taken |
+| `timestamp` | `str` | ISO 8601 timestamp |
+
+Property: `report.triggered_results` → filter to triggered attacks only.
+
+---
+
+### Auth CVE Database
+
+```python
+from offsec_ai.utils.auth_cve_db import match_cves, AUTH_CVE_DB
+
+# Query by provider name and detected issue keys
+matches = match_cves(
+    provider_name="spring",
+    detected_issues=["open_redirect", "pkce_missing"],
+)
+for entry in matches:
+    print(entry.cve_id, entry.severity, entry.title)
+
+# Browse all 14 entries
+for entry in AUTH_CVE_DB:
+    print(entry.cve_id or entry.advisory_id, entry.provider, entry.severity)
+```
+
+`AuthCVEEntry` fields: `cve_id`, `advisory_id`, `provider`, `severity`, `title`, `description`, `conditions` (list of issue keys), `references`.
 
 ---
 

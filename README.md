@@ -27,11 +27,30 @@
 
 `offsec-ai` is a Python library and CLI that combines classic network reconnaissance with modern AI/LLM security testing. It probes live AI/LLM endpoints for the [OWASP LLM Top 10](https://owasp.org/www-project-top-10-for-large-language-model-applications/), scans and actively attacks [Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers for known CVEs, and performs full-stack infrastructure security assessments.
 
-> **Legal Notice**: Active attack features (`mcp-attack`, `openclaw-attack`, `k8s-attack`, deep mode) require the `--i-have-authorization` flag. Only use against systems you own or have explicit written permission to test.
+> **Legal Notice**: Active attack features (`mcp-attack`, `openclaw-attack`, `k8s-attack`, `auth-attack`, deep mode) require the `--i-have-authorization` flag. Only use against systems you own or have explicit written permission to test.
 
 ---
 
 ## Features
+
+### New in v2.5.0 — Universal LLM Judge "Powered By" + OWASP Web Scanner Judge Support
+
+| Feature | Description |
+|---------|-------------|
+| 🔍 **OWASP Web Scanner LLM Judge** | `owasp-scan` now accepts `--llm-judge`; enriches MEDIUM/LOW findings with provider reasoning; upgrades LOW→MEDIUM when confidence > 0.7; verbose mode shows per-finding `LLM (X%): ...` |
+| 📢 **"Powered by" display everywhere** | Every `--llm-judge` command now shows `LLM Judge: gemini` (or `openai` / `anthropic`) inside the result panel **and** prints `LLM Judge powered by: gemini` as a footer — consistent across all 9 modules |
+| 🐛 **k8s-scan / k8s-attack bug fix** | Both commands previously used `LLMJudge()` directly (bypassing `is_available()`), which could crash with no API key. Fixed to use `LLMJudge.from_env()` + `is_available()` — the same safe pattern used by all other commands |
+| 📋 **`OwaspFinding` enrichment** | Two new optional fields: `llm_reasoning: str | None`, `llm_confidence: float | None` — populated by the LLM judge triage phase |
+
+### New in v2.4.0 — OIDC / OAuth 2.0 / SAML Auth Protocol Security
+
+| Feature | Description |
+|---------|-------------|
+| 🔑 **Auth Protocol Scanner** | Passive detection of OIDC, OAuth 2.0, and SAML endpoints; fingerprints provider (Google, Entra ID, Keycloak, Auth0, Okta, Cognito, etc.); parses discovery documents and SAML metadata |
+| 📋 **Auth CVE Database** | 14 advisories (`AUTH-ADV-###`) + real CVEs: CVE-2019-3778 (Spring), CVE-2017-11427 / CVE-2018-0489 (SAML XSW), CVE-2023-34462 (Keycloak/Netty), CVE-2023-41900 (OpenSAML) |
+| 🛡️ **Security Posture Checks** | PKCE enforcement, implicit flow, state parameter, alg=none in JWT, JWKS cache-control, SAML signing certificates, XML Signature Wrapping surface |
+| 🤖 **Optional LLM Judge** | Triages MEDIUM/LOW auth findings; shows `LLM Judge: gemini` (or `openai` / `anthropic`) in every scan/attack panel; falls back to rule-based when no API key is set |
+| ⚔️ **Auth Attacker** | Authorized red-team probes — **safe mode**: open redirect, state bypass, PKCE bypass; **deep mode** adds JWT alg=none, scope escalation, authorization code replay, SAML XSW (5 variants), JWKS confusion |
 
 ### New in v2.3.0 — Kubernetes Cluster Security
 
@@ -116,6 +135,14 @@ docker run --rm htunnthuthu/offsec-ai:latest --help
 ### CLI
 
 ```bash
+# Auth / identity protocol security
+offsec-ai auth-scan https://auth.example.com
+offsec-ai auth-scan https://idp.example.com --protocol saml
+offsec-ai auth-scan https://accounts.google.com --llm-judge
+offsec-ai auth-scan https://mocksaml.com/api/saml/metadata --protocol saml --llm-judge
+offsec-ai auth-attack https://auth.example.com --i-have-authorization
+offsec-ai auth-attack https://auth.example.com --i-have-authorization --mode deep --llm-judge
+
 # AI / LLM security
 offsec-ai ai-owasp-scan https://api.example.com/v1/chat/completions
 offsec-ai mcp-scan https://mcp.example.com/mcp
@@ -141,6 +168,7 @@ offsec-ai scan example.com
 offsec-ai l7-check example.com
 offsec-ai cert-check example.com
 offsec-ai owasp-scan example.com
+offsec-ai owasp-scan example.com --llm-judge   # shows "LLM Judge: gemini" in panel + footer
 offsec-ai hybrid-identity example.com
 offsec-ai mtls-check example.com
 ```
@@ -150,8 +178,28 @@ offsec-ai mtls-check example.com
 ```python
 import asyncio
 from offsec_ai import LLMOwaspScanner, MCPScanner, MCPAttacker, AuthorizationRequired
+from offsec_ai import AuthScanner, AuthAttacker, AuthProtocol
 
 async def main():
+    # Auth protocol scan (OIDC / OAuth2 / SAML)
+    auth = AuthScanner("https://accounts.google.com")
+    auth_result = await auth.scan()
+    print(f"Protocol: {auth_result.protocol.value}  Provider: {auth_result.provider_info.name}")
+    print(f"Vulnerabilities: {len(auth_result.all_vulns)}")
+
+    # SAML scan
+    saml = AuthScanner("https://mocksaml.com/api/saml/metadata", protocol="saml")
+    saml_result = await saml.scan()
+    print(f"SAML issuer: {saml_result.provider_info.issuer}")
+
+    # Auth attack (requires explicit authorization)
+    attacker = AuthAttacker(authorized=True)
+    report = await attacker.attack(
+        target="https://auth.example.com",
+        mode="safe",
+    )
+    print(f"Attacks run: {report.attacks_run}, triggered: {report.attacks_triggered}")
+
     # AI OWASP scan
     scanner = LLMOwaspScanner("https://api.example.com/v1/chat/completions")
     result = await scanner.scan()
@@ -424,6 +472,133 @@ async def main():
 
 asyncio.run(main())
 ```
+
+---
+
+## OIDC / OAuth 2.0 / SAML Auth Protocol Security
+
+Passive scanner and authorized attacker for identity provider endpoints across OIDC, OAuth 2.0, and SAML 2.0. Requires no credentials — all probes are passive HTTP requests unless attack mode is explicitly enabled.
+
+### Security Checks
+
+| Check ID | Protocol | Severity | Description |
+|----------|----------|----------|-------------|
+| OFFSEC-AUTH-PKCE-001 | OIDC/OAuth2 | HIGH | PKCE not supported |
+| OFFSEC-AUTH-PKCE-002 | OIDC/OAuth2 | MEDIUM | PKCE supported but not required |
+| OFFSEC-AUTH-IMPL-001 | OIDC/OAuth2 | HIGH | Implicit flow enabled |
+| OFFSEC-AUTH-JWTALGN-001 | OIDC | HIGH | alg=none accepted in JWKS |
+| OFFSEC-AUTH-STATE-001 | OIDC/OAuth2 | MEDIUM | State parameter not enforced |
+| OFFSEC-AUTH-JWKS-001 | OIDC | LOW | JWKS endpoint lacks cache-control |
+| OFFSEC-AUTH-SAML-NOSIG | SAML | HIGH | No signing certificate in metadata |
+| OFFSEC-AUTH-SAML-NOACS | SAML | MEDIUM | No AssertionConsumerService endpoint |
+| OFFSEC-AUTH-SAML-XSW | SAML | INFO | XML Signature Wrapping attack surface |
+
+### CVE Database (sample)
+
+| CVE | Severity | Description |
+|-----|----------|-------------|
+| CVE-2019-3778 | CRITICAL | Spring Security OAuth — open redirect via malformed redirect_uri |
+| CVE-2017-11427 | HIGH | SAML XSW — Shibboleth/OneLogin signature wrapping |
+| CVE-2018-0489 | HIGH | SAML XSW — Shibboleth SP unsigned assertion acceptance |
+| CVE-2023-41900 | HIGH | Keycloak — session fixation via OIDC back-channel logout |
+| AUTH-ADV-PKCE | HIGH | Missing PKCE enables authorization code interception |
+| AUTH-ADV-IMPLICIT | HIGH | Implicit flow exposes tokens in browser history |
+| AUTH-ADV-STATE | HIGH | Missing state parameter enables CSRF on authorization code |
+| AUTH-ADV-ALGNONE | CRITICAL | alg=none JWT accepted — authentication bypass |
+
+### CLI Usage
+
+```bash
+# Auto-detect protocol (OIDC/OAuth2/SAML)
+offsec-ai auth-scan https://auth.example.com
+
+# Explicitly probe SAML metadata
+offsec-ai auth-scan https://idp.example.com --protocol saml
+
+# Use public test IdP
+offsec-ai auth-scan https://mocksaml.com/api/saml/metadata --protocol saml
+
+# OIDC scan with LLM judge (shows "LLM Judge: gemini" in output)
+offsec-ai auth-scan https://accounts.google.com --llm-judge
+
+# Custom auth headers / TLS skip
+offsec-ai auth-scan https://internal-idp.corp.example.com \
+  --header "Authorization: Bearer token" --no-tls-verify
+
+# JSON output
+offsec-ai auth-scan https://auth.example.com --format json --output auth-scan.json
+
+# Active attack — safe mode (open redirect, state bypass, PKCE bypass)
+offsec-ai auth-attack https://auth.example.com --i-have-authorization
+
+# Deep mode (adds JWT alg=none, scope escalation, token replay, SAML XSW, JWKS confusion)
+offsec-ai auth-attack https://auth.example.com \
+  --i-have-authorization --mode deep --llm-judge
+
+# Export attack report
+offsec-ai auth-attack https://auth.example.com \
+  --i-have-authorization --mode deep --format json --output auth-attack.json
+```
+
+### Python API
+
+```python
+import asyncio
+from offsec_ai import AuthScanner, AuthAttacker, AuthProtocol, LLMJudge
+from offsec_ai.exceptions import AuthorizationRequired
+
+async def main():
+    # Optional LLM judge
+    judge = LLMJudge.from_env()   # reads GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY
+
+    # --- Passive scan (OIDC/OAuth2 auto-detect) ---
+    scanner = AuthScanner(
+        target="https://accounts.google.com",
+        protocol="auto",           # "auto" | "oidc" | "oauth2" | "saml"
+        judge=judge,               # None = rule-based only
+        timeout=15.0,
+        verify_tls=True,
+    )
+    result = await scanner.scan()
+    print(f"Protocol  : {result.protocol.value}")
+    print(f"Provider  : {result.provider_info.name}")
+    print(f"Issuer    : {result.provider_info.issuer}")
+    print(f"PKCE req  : {result.provider_info.pkce_required}")
+    print(f"Implicit  : {result.provider_info.implicit_flow_enabled}")
+    for vuln in result.all_vulns:
+        print(f"  [{vuln.severity.value}] {vuln.vuln_id}: {vuln.title}")
+        if vuln.cve_id:
+            print(f"    CVE: {vuln.cve_id}")
+
+    # --- Passive SAML scan ---
+    saml_scanner = AuthScanner(
+        target="https://mocksaml.com/api/saml/metadata",
+        protocol="saml",
+    )
+    saml_result = await saml_scanner.scan()
+    print(f"SAML entityID : {saml_result.provider_info.issuer}")
+    print(f"Signing certs : {saml_result.provider_info.raw.get('signing_cert_count', 0)}")
+
+    # --- Authorized active attack ---
+    try:
+        attacker = AuthAttacker(authorized=True)
+        report = await attacker.attack(
+            target="https://auth.example.com",
+            mode="safe",           # "safe" | "deep"
+            judge=judge,
+        )
+        print(f"Attacks run     : {report.attacks_run}")
+        print(f"Attacks triggered: {report.attacks_triggered}")
+        for r in report.triggered_results:
+            print(f"  [{r.severity.value}] {r.title}")
+            print(f"    Evidence: {r.evidence[:80]}...")
+    except AuthorizationRequired:
+        print("Pass authorized=True to unlock attack mode")
+
+asyncio.run(main())
+```
+
+See [docs/auth.md](docs/auth.md) for the full guide including CVE detail, remediation advice, and SAML testing tips.
 
 ---
 
@@ -730,6 +905,11 @@ offsec-ai mtls-validate-cert client.crt client.key
 offsec-ai owasp-scan example.com
 offsec-ai owasp-scan example.com --deep
 offsec-ai owasp-scan example.com -c A02,A05,A07 -t nginx --verbose
+
+# With LLM judge — enriches MEDIUM/LOW findings, shows "LLM Judge: gemini" in panel
+offsec-ai owasp-scan example.com --llm-judge
+offsec-ai owasp-scan example.com --deep --llm-judge --verbose
+
 offsec-ai owasp-scan example.com -f pdf -o report.pdf
 ```
 
@@ -755,6 +935,8 @@ Commands:
   openclaw-attack     Authorized active attack against an OpenClaw gateway
   k8s-scan            Black-box Kubernetes cluster security scan (OWASP K8s Top 10)
   k8s-attack          Authorized active red-team attack against Kubernetes components
+  auth-scan           Passive OIDC / OAuth 2.0 / SAML auth protocol security scan
+  auth-attack         Authorized active attack against auth/identity endpoints
   scan                Scan target hosts for open ports
   l7-check            Check for L7 protection services (WAF, CDN, etc.)
   full-scan           Port scan + L7 protection detection
@@ -762,7 +944,7 @@ Commands:
   cert-chain          Analyze complete certificate chain and trust path
   cert-info           Show detailed certificate information
   dns-trace           Trace DNS records and analyze L7 protection
-  owasp-scan          OWASP Top 10 2021/2025 vulnerability scanner
+  owasp-scan          OWASP Top 10 2021/2025 vulnerability scanner (--llm-judge supported)
   hybrid-identity     Check for Azure AD/ADFS hybrid identity setup
   mtls-check          Check for mTLS authentication support
   mtls-gen-cert       Generate a self-signed certificate for mTLS testing

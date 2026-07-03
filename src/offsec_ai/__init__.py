@@ -16,6 +16,8 @@ Capabilities:
 - OpenClaw personal AI gateway security scanner and attacker
 - Kubernetes cluster black-box security scanner (OWASP K8s Top 10 2025)
 - Kubernetes attacker module for authorized red-team engagements
+- OIDC / OAuth 2.0 / SAML endpoint security scanner and CVE matching
+- OIDC / OAuth 2.0 / SAML active attack module (requires explicit authorization)
 - Security header analysis and grading
 - Multi-format reporting (PDF, JSON, CSV)
 - Rich CLI interface with progress bars
@@ -74,6 +76,16 @@ from .models.mcp_result import (
 )
 from .core.k8s_scanner import K8sScanner
 from .core.k8s_attacker import K8sAttacker
+from .core.auth_scanner import AuthScanner
+from .core.auth_attacker import AuthAttacker
+from .models.auth_result import (
+    AuthScanResult,
+    AuthAttackReport,
+    AuthAttackResult,
+    AuthVulnerability,
+    AuthProtocol,
+    AuthVulnSeverity,
+)
 from .models.k8s_result import (
     K8sScanResult,
     K8sAttackReport,
@@ -153,4 +165,14 @@ __all__ = [
     "K8sComponent",
     "K8sExposedComponent",
     "K8sServerInfo",
+    # Auth (OIDC / OAuth2 / SAML) modules
+    "AuthScanner",
+    "AuthAttacker",
+    # Auth result models
+    "AuthScanResult",
+    "AuthAttackReport",
+    "AuthAttackResult",
+    "AuthVulnerability",
+    "AuthProtocol",
+    "AuthVulnSeverity",
 ]

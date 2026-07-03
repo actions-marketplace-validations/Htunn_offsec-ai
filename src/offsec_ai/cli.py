@@ -44,6 +44,8 @@ from .core.guardrail_bench import GuardrailBench
 from .core.llm_judge import LLMJudge
 from .core.k8s_scanner import K8sScanner
 from .core.k8s_attacker import K8sAttacker
+from .core.auth_scanner import AuthScanner
+from .core.auth_attacker import AuthAttacker
 from .exceptions import AuthorizationRequired
 from .models.scan_result import ScanResult, BatchScanResult
 from .models.l7_result import L7Result, BatchL7Result
@@ -60,6 +62,12 @@ from .models.k8s_result import (
     K8sScanResult,
     K8sAttackReport,
     K8sVulnSeverity,
+)
+from .models.auth_result import (
+    AuthScanResult,
+    AuthAttackReport,
+    AuthVulnSeverity,
+    AuthProtocol,
 )
 from .utils.common_ports import TOP_PORTS, get_service_name, get_port_description
 from .utils.exporters import OwaspPdfExporter, export_to_csv, export_to_json
@@ -515,10 +523,6 @@ async def _run_l7_detection(
                 if verbose:
                     # Display the result with DNS trace information if available
                     _display_l7_result(result, show_trace=trace_dns or verbose)
-                    
-                    # If DNS trace is enabled and verbose is true, also show detailed DNS trace
-                    if trace_dns and verbose:
-                        _display_dns_trace(result)
 
             except Exception as e:
                 console.print(f"[red]Error checking {target}: {e}[/red]")
@@ -625,18 +629,18 @@ async def _display_detailed_dns_trace(target: str, dns_trace: dict, domain_resul
     # Show resolved IPs
     if dns_trace.get("resolved_ips"):
         console.print("\n[cyan]Resolved IPs:[/cyan]")
-        for hostname, ips in dns_trace["resolved_ips"].items():
-            console.print(f"  [bold]{hostname}:[/bold] {', '.join(ips)}")
+        for host, ips in dns_trace["resolved_ips"].items():
+            console.print(f"  [bold]{host}:[/bold] {', '.join(ips)}")
     
     # Show IP protection if check_protection is enabled
     if check_protection and dns_trace.get("ip_protection"):
         console.print("\n[cyan]IP Protection Analysis:[/cyan]")
         for ip, protection in dns_trace["ip_protection"].items():
             if "service" in protection:
-                console.print(f"  [green]{ip}: {protection['service']} ({protection['confidence']:.1%}) via {protection['origin_host']}[/green]")
+                console.print(f"  [green]{ip}: {protection['service']} ({protection['confidence']:.1%})[/green]")
             elif "error" in protection:
-                console.print(f"  [red]{ip}: Failed to check ({protection['error']})[/red]")
-    
+                console.print(f"  [dim]{ip}: Failed to check ({protection['error']})[/dim]")
+
     # Show domain protection
     if domain_result.is_protected and domain_result.primary_protection:
         console.print("\n[cyan]Domain Protection:[/cyan]")
@@ -1518,18 +1522,7 @@ async def _save_certificate_results(cert_chain, output_file: str, hostname_valid
         json.dump(result, f, indent=2)
 
 
-async def _save_certificate_chain_results(cert_chain, revocation_results: dict, output_file: str):
-    """Save certificate chain analysis results to file."""
-    result = {
-        "chain_analysis": {
-            "valid": cert_chain.chain_valid,
-            "complete": cert_chain.chain_complete,
-            "missing_intermediates": cert_chain.missing_intermediates,
-            "trust_issues": cert_chain.trust_issues
-        },
-        "certificates": [],
-        "revocation_check": revocation_results
-    }
+
     
     # Add server certificate
     result["certificates"].append({
@@ -1570,6 +1563,29 @@ async def _save_certificate_chain_results(cert_chain, revocation_results: dict, 
         })
     
     with open(output_file, 'w') as f:
+        json.dump(result, f, indent=2)
+
+
+async def _save_certificate_chain_results(cert_chain, revocation_results: dict, output_file: str) -> None:
+    """Save certificate chain analysis results to file."""
+    result: dict = {
+        "chain_valid": cert_chain.chain_valid,
+        "chain_complete": cert_chain.chain_complete,
+        "chain_length": cert_chain.chain_length,
+        "certificates": [
+            {
+                "subject": cert.subject,
+                "issuer": cert.issuer,
+                "not_before": cert.not_before.isoformat(),
+                "not_after": cert.not_after.isoformat(),
+                "is_valid": cert.is_valid_now,
+                "fingerprint_sha256": cert.fingerprint_sha256,
+            }
+            for cert in (cert_chain.certificate_chain or [])
+        ],
+        "revocation": revocation_results,
+    }
+    with open(output_file, "w") as f:
         json.dump(result, f, indent=2)
 
 
@@ -1622,78 +1638,6 @@ async def _save_certificate_info_results(cert_chain, output_file: str, include_p
     
     with open(output_file, 'w') as f:
         json.dump(result, f, indent=2)
-
-
-def _display_dns_trace(result: L7Result):
-    """Display DNS trace information."""
-    
-    if not result.dns_trace or not any(result.dns_trace.values()):
-        console.print(f"[yellow]No DNS trace information available for {result.host}[/yellow]")
-        return
-    
-    dns_trace = result.dns_trace
-    
-    # Prepare the trace panel content
-    trace_content = []
-    trace_content.append(f"[bold]DNS Trace for {result.host}[/bold]")
-    trace_content.append("")
-    
-    # Show CNAME chain
-    if "cname_chain" in dns_trace and dns_trace["cname_chain"]:
-        trace_content.append("[bold cyan]CNAME Chain:[/bold cyan]")
-        for cname in dns_trace["cname_chain"]:
-            trace_content.append(f"  {cname['from']} → [cyan]{cname['to']}[/cyan] (depth: {cname['depth']})")
-        trace_content.append("")
-    else:
-        trace_content.append("[yellow]No CNAME records found[/yellow]")
-        trace_content.append("")
-    
-    # Show resolved IPs
-    if "resolved_ips" in dns_trace and dns_trace["resolved_ips"]:
-        trace_content.append("[bold cyan]Resolved IPs:[/bold cyan]")
-        for host, ips in dns_trace["resolved_ips"].items():
-            trace_content.append(f"  [bold]{host}:[/bold] {', '.join(ips)}")
-        trace_content.append("")
-    
-    # Show IP protection
-    if "ip_protection" in dns_trace and dns_trace["ip_protection"]:
-        trace_content.append("[bold cyan]IP Protection Analysis:[/bold cyan]")
-        for ip, protection in dns_trace["ip_protection"].items():
-            if "service" in protection:
-                trace_content.append(f"  [green]{ip}: {protection['service']} ({protection['confidence']:.1%}) via {protection['origin_host']}[/green]")
-            elif "error" in protection:
-                trace_content.append(f"  [red]{ip}: Failed to check ({protection['error']})[/red]")
-    
-    # Display primary protection and IP protection comparison
-    if result.is_protected:
-        trace_content.append("")
-        trace_content.append("[bold]Protection Analysis:[/bold]")
-        trace_content.append(f"  Domain: [cyan]{result.primary_protection.service.value}[/cyan] ({result.primary_protection.confidence:.1%})")
-        
-        # Check if the IP protection matches the domain protection
-        ip_services = set()
-        for protection in dns_trace.get("ip_protection", {}).values():
-            if "service" in protection:
-                ip_services.add(protection["service"])
-        
-        if ip_services:
-            trace_content.append(f"  IP services: [cyan]{', '.join(ip_services)}[/cyan]")
-            
-            # Compare domain protection with IP protection
-            domain_service = result.primary_protection.service.value
-            if domain_service in ip_services:
-                trace_content.append("[green]  ✓ Domain and IP protection match[/green]")
-            else:
-                trace_content.append("[yellow]  ⚠ Domain and IP protection differ[/yellow]")
-    
-    # Display the panel
-    console.print(
-        Panel(
-            "\n".join(trace_content),
-            title=f"DNS Trace - {result.host}",
-            border_style="blue",
-        )
-    )
 
 
 async def _run_mtls_check(
@@ -2097,7 +2041,10 @@ def _display_hybrid_identity_summary(results: List[HybridIdentityResult], durati
 @click.option("--severity", type=click.Choice(["CRITICAL", "HIGH", "MEDIUM", "LOW"]), help="Filter by minimum severity level")
 @click.option("--verbose/--quiet", default=False, help="Verbose (full findings) or quiet (grade summary only)")
 @click.option("--timeout", default=10, help="Request timeout in seconds")
-def owasp_scan(targets, deep, categories, tech_stack, format, output, severity, verbose, timeout):
+@click.option("--llm-judge", "use_judge", is_flag=True, default=False,
+              help="Use LLM judge (auto-detected: GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY) "
+                   "to triage MEDIUM/LOW findings.")
+def owasp_scan(targets, deep, categories, tech_stack, format, output, severity, verbose, timeout, use_judge):
     """
     Perform OWASP Top 10 2021/2025 security vulnerability scan.
     
@@ -2165,6 +2112,7 @@ def owasp_scan(targets, deep, categories, tech_stack, format, output, severity, 
             severity,
             verbose,
             timeout,
+            use_judge,
         )
     )
 
@@ -2179,14 +2127,28 @@ async def _run_owasp_scan(
     severity_filter: Optional[str],
     verbose: bool,
     timeout: float,
+    use_judge: bool = False,
 ):
     """Run OWASP vulnerability scan."""
-    
+
+    judge = None
+    judge_provider: str | None = None
+    if use_judge:
+        _j = LLMJudge.from_env()
+        if _j.is_available():
+            judge = _j
+            judge_provider = judge.provider
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
+        else:
+            console.print("[yellow]Warning: --llm-judge set but no provider API key found. "
+                          "Set GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.[/yellow]")
+
     # Initialize scanner
     scanner = OwaspScanner(
         mode=scan_mode,
         categories=categories,
         timeout=timeout,
+        judge=judge,
     )
     
     # Scan targets
@@ -2232,7 +2194,7 @@ async def _run_owasp_scan(
     
     # Output results
     if output_format == "console":
-        _display_owasp_results(results, verbose)
+        _display_owasp_results(results, verbose, judge_provider=judge_provider)
     elif output_format == "json":
         for result in results:
             export_to_json(result, output_file, include_remediation=True, tech_stack=tech_stack)
@@ -2247,8 +2209,11 @@ async def _run_owasp_scan(
             exporter.export(result, output_file)
         console.print(f"[green]✓ PDF report generated: {output_file}[/green]")
 
+    if output_format == "console" and judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
 
-def _display_owasp_results(results: List[OwaspScanResult], verbose: bool):
+
+def _display_owasp_results(results: List[OwaspScanResult], verbose: bool, judge_provider: str | None = None):
     """Display OWASP scan results in console."""
     
     for result in results:
@@ -2258,6 +2223,7 @@ def _display_owasp_results(results: List[OwaspScanResult], verbose: bool):
             f"[bold]OWASP Top 10 2021 Security Assessment[/bold]\n"
             f"Target: {result.target}\n"
             f"Scan Mode: {result.scan_mode.value.upper()}\n"
+            f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}\n"
             f"Duration: {result.scan_duration:.2f}s",
             title="Security Scan Report",
             border_style="blue",
@@ -2346,12 +2312,20 @@ def _display_detailed_findings(result: OwaspScanResult):
         for finding in category.findings:
             severity_color = _get_severity_color(finding.severity)
             table.add_row(
-                f"[{severity_color}]{finding.severity.value}[/{severity_color}]",
+                f"[{severity_color}]{finding.severity.value.upper()}[/{severity_color}]",
                 f"[bold]{finding.title}[/bold]\n{finding.description}",
                 finding.evidence or "-",
             )
         
         console.print(table)
+
+        # Show LLM reasoning for triaged findings
+        for finding in category.findings:
+            if finding.llm_reasoning:
+                console.print(
+                    f"    [magenta]LLM ({finding.llm_confidence:.0%}): "
+                    f"{finding.llm_reasoning[:120]}[/magenta]"
+                )
 
 
 def _get_grade_color(grade: str) -> str:
@@ -2409,12 +2383,14 @@ def ai_owasp_scan(target_url, mode, categories, api_format, model, extra_headers
     TARGET_URL is the full chat completions endpoint URL,
     e.g. https://api.openai.com/v1/chat/completions
     """
-    asyncio.run(_run_ai_owasp_scan(
+    judge_provider = asyncio.run(_run_ai_owasp_scan(
         target_url=target_url, mode=mode,
         categories=list(categories), api_format=api_format,
         model=model, extra_headers=list(extra_headers),
         use_judge=judge, output_format=output_format, output=output,
     ))
+    if output_format == "console" and judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
 
 
 async def _run_ai_owasp_scan(
@@ -2428,10 +2404,12 @@ async def _run_ai_owasp_scan(
             headers[k.strip()] = v.strip()
 
     judge = None
+    judge_provider: str | None = None
     if use_judge:
         j = LLMJudge.from_env()
         if j.is_available():
             judge = j
+            judge_provider = judge.provider
             console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
         else:
             console.print("[yellow]Warning: --llm-judge flag set but no provider API key found. "
@@ -2465,24 +2443,27 @@ async def _run_ai_owasp_scan(
             console.print(f"[green]Results saved to {output}[/green]")
         if output_format == "json":
             console.print_json(json.dumps(data, default=str))
-        return
+        return judge_provider
 
-    _display_ai_owasp_result(result)
+    _display_ai_owasp_result(result, judge_provider=judge_provider)
+    return judge_provider
 
 
-def _display_ai_owasp_result(result: LLMScanResult) -> None:
+def _display_ai_owasp_result(result: LLMScanResult, judge_provider: str | None = None) -> None:
     grade_color = {"A": "green", "B": "green", "C": "yellow", "D": "red", "F": "bold red"}
     color = grade_color.get(result.overall_grade, "white")
 
     console.print(Panel(
         f"[bold]Target:[/bold] {result.target}\n"
         f"[bold]Mode:[/bold] {result.scan_mode.value}\n"
-        f"[bold]Grade:[/bold] [{color}]{result.overall_grade}[/{color}]  "
+        f"[bold]Grade:[/bold] [{color}]{result.overall_grade}[/{color}][/bold]"
+        f"  "
         f"[bold]Score:[/bold] {result.overall_score:.1f}/10  "
         f"[bold]Duration:[/bold] {result.scan_duration:.1f}s\n"
         f"[bold]Critical:[/bold] [red]{len(result.critical_findings)}[/red]  "
         f"[bold]High:[/bold] [yellow]{len(result.high_findings)}[/yellow]  "
-        f"[bold]Total findings:[/bold] {len(result.all_findings)}",
+        f"[bold]Total findings:[/bold] {len(result.all_findings)}\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}",
         title="[bold cyan]AI/LLM OWASP Top 10 Scan Results[/bold cyan]",
         border_style="cyan",
     ))
@@ -2544,13 +2525,15 @@ def mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_verify, outp
         offsec-ai mcp-scan https://mcp.example.com/mcp
         offsec-ai mcp-scan stdio://local --transport stdio --cmd python server.py
     """
-    asyncio.run(_run_mcp_scan(
+    judge_provider = asyncio.run(_run_mcp_scan(
         target=target, transport=transport, cmd=list(cmd),
         extra_headers=list(extra_headers), timeout=timeout,
         no_tls_verify=no_tls_verify,
         output_format=output_format, output=output,
         use_judge=use_judge,
     ))
+    if output_format == "console" and judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
 
 
 async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_verify, output_format, output, use_judge=False):
@@ -2561,12 +2544,16 @@ async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_v
             headers[k.strip()] = v.strip()
 
     judge = None
+    judge_provider: str | None = None
     if use_judge:
         judge = LLMJudge.from_env()
         if not judge.is_available():
             console.print("[yellow]Warning: --llm-judge set but no provider found. "
                           "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
             judge = None
+        else:
+            judge_provider = judge.provider
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
 
     scanner = MCPScanner(
         target=target,
@@ -2601,7 +2588,7 @@ async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_v
             data = result.model_dump(mode="json")
             Path(output).write_text(json.dumps(data, indent=2, default=str))
             console.print(f"[green]Partial results saved to {output}[/green]")
-        return
+        return judge_provider
 
     if output_format == "json" or output:
         import json
@@ -2611,12 +2598,13 @@ async def _run_mcp_scan(target, transport, cmd, extra_headers, timeout, no_tls_v
             console.print(f"[green]Results saved to {output}[/green]")
         if output_format == "json":
             console.print_json(json.dumps(data, default=str))
-        return
+        return judge_provider
 
-    _display_mcp_scan_result(result)
+    _display_mcp_scan_result(result, judge_provider=judge_provider)
+    return judge_provider
 
 
-def _display_mcp_scan_result(result: MCPScanResult) -> None:
+def _display_mcp_scan_result(result: MCPScanResult, judge_provider: str | None = None) -> None:
     all_vulns = result.all_vulns
     critical = [v for v in all_vulns if v.severity == MCPVulnSeverity.CRITICAL]
     high = [v for v in all_vulns if v.severity == MCPVulnSeverity.HIGH]
@@ -2634,6 +2622,7 @@ def _display_mcp_scan_result(result: MCPScanResult) -> None:
         f"[bold]Vulnerabilities:[/bold] [red]{len(critical)} critical[/red]  "
         f"[yellow]{len(high)} high[/yellow]  {len(all_vulns)} total  "
         f"[bold]CVE matches:[/bold] {len(result.cve_matches)}\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}\n"
         f"[bold]Duration:[/bold] {result.scan_duration:.1f}s",
         title="[bold cyan]MCP Security Scan Results[/bold cyan]",
         border_style=panel_color,
@@ -2669,6 +2658,12 @@ def _display_mcp_scan_result(result: MCPScanResult) -> None:
                 console.print(f"    [dim]Evidence: {vuln.evidence[:100]}[/dim]")
             if vuln.remediation:
                 console.print(f"    [green]Fix: {vuln.remediation[:100]}[/green]")
+            if vuln.llm_reasoning:
+                console.print(
+                    f"    [magenta]LLM ({vuln.llm_confidence:.0%}): {vuln.llm_reasoning[:120]}[/magenta]"
+                )
+    else:
+        console.print("\n[green]No vulnerabilities found.[/green]")
 
 
 # ============================================================================
@@ -2730,12 +2725,16 @@ async def _run_mcp_attack(target, transport, cmd, mode, extra_headers, timeout,
             headers[k.strip()] = v.strip()
 
     judge = None
+    judge_provider: str | None = None
     if use_judge:
         judge = LLMJudge.from_env()
         if not judge.is_available():
             console.print("[yellow]Warning: --llm-judge set but no provider found. "
                           "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
             judge = None
+        else:
+            judge_provider = judge.provider
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
 
     # First run a scan to guide attacks
     scan_result = None
@@ -2773,10 +2772,12 @@ async def _run_mcp_attack(target, transport, cmd, mode, extra_headers, timeout,
             console.print_json(json.dumps(data, default=str))
         return
 
-    _display_mcp_attack_report(report)
+    _display_mcp_attack_report(report, judge_provider=judge_provider)
+    if judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
 
 
-def _display_mcp_attack_report(report: MCPAttackReport) -> None:
+def _display_mcp_attack_report(report: MCPAttackReport, judge_provider: str | None = None) -> None:
     triggered = report.triggered_results
     panel_color = "red" if triggered else "green"
 
@@ -2785,6 +2786,7 @@ def _display_mcp_attack_report(report: MCPAttackReport) -> None:
         f"[bold]Transport:[/bold] {report.transport.value}\n"
         f"[bold]Attacks run:[/bold] {report.attacks_run}  "
         f"[bold]Triggered:[/bold] [{'red' if triggered else 'green'}]{report.attacks_triggered}[/{'red' if triggered else 'green'}]\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}\n"
         f"[bold]Duration:[/bold] {report.scan_duration:.1f}s\n"
         f"[dim]{report.authorization_note}[/dim]",
         title="[bold red]MCP Attack Report[/bold red]",
@@ -2872,12 +2874,16 @@ async def _run_openclaw_scan(
             headers[k.strip()] = v.strip()
 
     judge = None
+    judge_provider: str | None = None
     if use_judge:
         judge = LLMJudge.from_env()
         if not judge.is_available():
             console.print("[yellow]Warning: --llm-judge set but no provider found. "
                           "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
             judge = None
+        else:
+            judge_provider = judge.provider
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
 
     scanner = OpenClawScanner(
         target=target,
@@ -2912,10 +2918,12 @@ async def _run_openclaw_scan(
             console.print_json(_json.dumps(data, default=str))
         return
 
-    _display_openclaw_scan_result(result)
+    _display_openclaw_scan_result(result, judge_provider=judge_provider)
+    if judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
 
 
-def _display_openclaw_scan_result(result) -> None:
+def _display_openclaw_scan_result(result, judge_provider: str | None = None) -> None:
     from .models.openclaw_result import OpenClawVulnSeverity
 
     critical = [v for v in result.vulnerabilities if v.severity == OpenClawVulnSeverity.CRITICAL]
@@ -2938,6 +2946,7 @@ def _display_openclaw_scan_result(result) -> None:
         f"[bold]Accessible Endpoints:[/bold] {len(result.accessible_endpoints)}\n"
         f"[bold]Vulnerabilities:[/bold] [red]{len(critical)} critical[/red]  "
         f"[yellow]{len(high)} high[/yellow]  {len(result.vulnerabilities)} total\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}\n"
         f"[bold]Duration:[/bold] {result.scan_duration:.1f}s",
         title="[bold cyan]OpenClaw Gateway Security Scan[/bold cyan]",
         border_style=panel_color,
@@ -3025,9 +3034,8 @@ def openclaw_attack(target, port, use_tls, mode, extra_headers, timeout,
     if not authorized:
         console.print(
             "[bold red]⚠  --i-have-authorization flag is required.[/bold red]\n"
-            "This command performs ACTIVE ATTACKS. Only use against systems you "
-            "have explicit written authorization to test.\n"
-            "Add [bold]--i-have-authorization[/bold] to confirm."
+            "Only use this module against auth servers you own or have "
+            "explicit written permission to test."
         )
         raise SystemExit(1)
 
@@ -3059,12 +3067,16 @@ async def _run_openclaw_attack(
             headers[k.strip()] = v.strip()
 
     judge = None
+    judge_provider: str | None = None
     if use_judge:
         judge = LLMJudge.from_env()
         if not judge.is_available():
             console.print("[yellow]Warning: --llm-judge set but no provider found. "
                           "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
             judge = None
+        else:
+            judge_provider = judge.provider
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
 
     # First scan the target
     console.print(f"[yellow]Phase 1: Scanning {target}:{port}...[/yellow]")
@@ -3124,10 +3136,12 @@ async def _run_openclaw_attack(
             console.print_json(_json.dumps(data, default=str))
         return
 
-    _display_openclaw_attack_report(report)
+    _display_openclaw_attack_report(report, judge_provider=judge_provider)
+    if judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
 
 
-def _display_openclaw_attack_report(report) -> None:
+def _display_openclaw_attack_report(report, judge_provider: str | None = None) -> None:
     from .models.openclaw_result import OpenClawVulnSeverity
 
     succeeded = report.successful_attacks
@@ -3140,6 +3154,7 @@ def _display_openclaw_attack_report(report) -> None:
         f"[bold]Attacks run:[/bold] {len(report.attack_results)}  "
         f"[bold]Succeeded:[/bold] [{'red' if succeeded else 'green'}]{len(succeeded)}[/{'red' if succeeded else 'green'}]\n"
         f"[bold]Critical:[/bold] [red]{len(critical)}[/red]\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}\n"
         f"[bold]Duration:[/bold] {report.attack_duration:.1f}s",
         title="[bold red]OpenClaw Attack Report[/bold red]",
         border_style=panel_color,
@@ -3457,7 +3472,17 @@ def k8s_scan(
                 k, v = h.split(":", 1)
                 headers[k.strip()] = v.strip()
 
-        judge = LLMJudge() if use_judge else None
+        judge = None
+        judge_provider: str | None = None
+        if use_judge:
+            _j = LLMJudge.from_env()
+            if _j.is_available():
+                judge = _j
+                judge_provider = judge.provider
+                console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
+            else:
+                console.print("[yellow]Warning: --llm-judge set but no provider API key found. "
+                              "Set GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.[/yellow]")
         port_list = list(ports) if ports else None
 
         scanner = K8sScanner(
@@ -3490,12 +3515,14 @@ def k8s_scan(
                 console.print_json(json.dumps(data, default=str))
             return
 
-        _display_k8s_scan_result(result)
+        _display_k8s_scan_result(result, judge_provider=judge_provider)
+        if judge_provider:
+            console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
 
     asyncio.run(_run())
 
 
-def _display_k8s_scan_result(result: "K8sScanResult") -> None:
+def _display_k8s_scan_result(result: "K8sScanResult", judge_provider: str | None = None) -> None:
     """Render a K8sScanResult to the console."""
     critical = result.critical_vulns
     high = result.high_vulns
@@ -3515,6 +3542,7 @@ def _display_k8s_scan_result(result: "K8sScanResult") -> None:
         f"[yellow]{len(high)} high[/yellow]  {len(result.vulnerabilities)} total\n"
         f"[bold]OWASP Coverage:[/bold] {', '.join(result.owasp_coverage) or 'none'}\n"
         f"[bold]CVE Matches:[/bold] {', '.join(result.cve_matches) or 'none'}\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}\n"
         f"[bold]Duration:[/bold] {result.scan_duration:.1f}s",
         title="[bold cyan]Kubernetes Security Scan[/bold cyan]",
         border_style=panel_color,
@@ -3662,7 +3690,17 @@ def k8s_attack(
                 k, v = h.split(":", 1)
                 headers[k.strip()] = v.strip()
 
-        judge = LLMJudge() if use_judge else None
+        judge = None
+        judge_provider: str | None = None
+        if use_judge:
+            _j = LLMJudge.from_env()
+            if _j.is_available():
+                judge = _j
+                judge_provider = judge.provider
+                console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
+            else:
+                console.print("[yellow]Warning: --llm-judge set but no provider API key found. "
+                              "Set GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.[/yellow]")
         port_list = list(ports) if ports else None
 
         # Phase 1: passive scan to guide attacks
@@ -3698,9 +3736,9 @@ def k8s_attack(
 
         try:
             attacker = K8sAttacker(authorized=True, judge=judge)
-        except AuthorizationRequired as exc:
-            console.print(f"[red]{exc}[/red]")
-            raise SystemExit(1)
+        except Exception as exc:
+            console.print(f"[bold red]Error:[/bold red] {exc}")
+            raise SystemExit(1) from exc
 
         with Progress(
             SpinnerColumn(),
@@ -3729,12 +3767,14 @@ def k8s_attack(
                 console.print_json(json.dumps(data, default=str))
             return
 
-        _display_k8s_attack_report(report)
+        _display_k8s_attack_report(report, judge_provider=judge_provider)
+        if judge_provider:
+            console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
 
     asyncio.run(_run())
 
 
-def _display_k8s_attack_report(report: "K8sAttackReport") -> None:
+def _display_k8s_attack_report(report: "K8sAttackReport", judge_provider: str | None = None) -> None:
     """Render a K8sAttackReport to the console."""
     succeeded = report.successful_attacks
     critical = report.critical_successes
@@ -3746,6 +3786,7 @@ def _display_k8s_attack_report(report: "K8sAttackReport") -> None:
         f"[bold]Attacks Run:[/bold] {len(report.attack_results)}\n"
         f"[bold]Succeeded:[/bold] [{'red' if succeeded else 'green'}]{len(succeeded)}[/{'red' if succeeded else 'green'}]\n"
         f"[bold]Critical:[/bold] [red]{len(critical)}[/red]\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}\n"
         f"[bold]Duration:[/bold] {report.attack_duration:.1f}s",
         title="[bold red]Kubernetes Attack Report[/bold red]",
         border_style=panel_color,
@@ -3782,7 +3823,7 @@ def _display_k8s_attack_report(report: "K8sAttackReport") -> None:
         color = sev_color.get(r.severity, "white")
         result_str = (
             "[bold red]TRIGGERED[/bold red]" if r.succeeded
-            else ("[dim]error[/dim]" if r.error else "[green]clean[/green]")
+            else "[green]clean[/green]"
         )
         atk_table.add_row(
             r.attack_id,
@@ -3797,4 +3838,359 @@ def _display_k8s_attack_report(report: "K8sAttackReport") -> None:
         if r.evidence:
             console.print(f"\n[bold red]▶ {r.attack_id}[/bold red]: {r.evidence}")
 
+
+# ============================================================================
+# auth-scan — OIDC / OAuth 2.0 / SAML endpoint passive security scanner
+# ============================================================================
+
+@main.command("auth-scan")
+@click.argument("target")
+@click.option(
+    "--protocol",
+    type=click.Choice(["auto", "oidc", "oauth2", "saml"]),
+    default="auto",
+    show_default=True,
+    help="Auth protocol to probe. 'auto' tries OIDC then SAML.",
+)
+@click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE",
+              help="Extra HTTP headers.")
+@click.option("--timeout", default=15.0, show_default=True, help="Request timeout (seconds).")
+@click.option("--no-tls-verify", "no_tls_verify", is_flag=True, default=False,
+              help="Disable TLS certificate verification (for self-signed certs).")
+@click.option("--format", "output_format", type=click.Choice(["console", "json"]),
+              default="console", show_default=True)
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Save JSON result to file.")
+@click.option("--llm-judge", "use_judge", is_flag=True, default=False,
+              help="Use LLM judge (auto-detected provider) to enrich findings.")
+def auth_scan(target, protocol, extra_headers, timeout, no_tls_verify, output_format, output, use_judge):
+    """Scan an OIDC, OAuth 2.0, or SAML endpoint for security vulnerabilities and CVEs.
+
+    TARGET is the base URL of the auth server (e.g. https://auth.example.com).
+    The scanner probes well-known discovery endpoints and metadata paths.
+
+    \b
+    Examples:
+        offsec-ai auth-scan https://auth.example.com
+        offsec-ai auth-scan https://idp.example.com --protocol saml
+        offsec-ai auth-scan https://auth.example.com --llm-judge --output result.json
+    """
+    result, judge_provider = asyncio.run(_run_auth_scan(
+        target=target, protocol=protocol, extra_headers=list(extra_headers),
+        timeout=timeout, no_tls_verify=no_tls_verify,
+        output_format=output_format, output=output, use_judge=use_judge,
+    ))
+    # If the output format is console and there's a result and a judge provider, print it
+    if output_format == "console" and judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
+
+
+async def _run_auth_scan(
+    target, protocol, extra_headers, timeout, no_tls_verify, output_format, output, use_judge=False
+) -> tuple[AuthScanResult, str | None]:
+    headers = {}
+    for h in extra_headers:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+
+    judge = None
+    judge_provider = None
+    if use_judge:
+        judge = LLMJudge.from_env()
+        if not judge.is_available():
+            console.print("[yellow]Warning: --llm-judge set but no provider found. "
+                          "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
+            judge = None
+        else:
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
+            judge_provider = judge.provider
+
+    scanner = AuthScanner(
+        target=target,
+        protocol=protocol,
+        headers=headers,
+        timeout=timeout,
+        verify_tls=not no_tls_verify,
+        judge=judge,
+    )
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Scanning auth endpoint {target}...", total=None)
+        result: AuthScanResult = await scanner.scan()
+        progress.stop_task(task)
+
+    if result.error and not result.provider_info.issuer and not result.provider_info.endpoints:
+        console.print(f"[bold red]Error:[/bold red] {result.error}")
+        return result, judge_provider
+
+    if output_format == "json" or output:
+        data = result.model_dump(mode="json")
+        if output:
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Results saved to {output}[/green]")
+        if output_format == "json":
+            console.print_json(json.dumps(data, default=str))
+        return result, judge_provider
+
+    _display_auth_scan_result(result, judge_provider)
+
+    return result, judge_provider
+def _display_auth_scan_result(result: AuthScanResult, judge_provider: str | None = None) -> None:
+    all_vulns = result.all_vulns
+    critical = [v for v in all_vulns if v.severity == AuthVulnSeverity.CRITICAL]
+    high = [v for v in all_vulns if v.severity == AuthVulnSeverity.HIGH]
+
+    panel_color = "red" if critical else ("yellow" if high else "green")
+
+    proto_str = result.protocol.value.upper()
+    issuer = result.provider_info.issuer or result.provider_info.name or "unknown"
+    console.print(Panel(
+        f"[bold]Target:[/bold] {result.target}\n"
+        f"[bold]Protocol:[/bold] {proto_str}\n"
+        f"[bold]Provider:[/bold] {result.provider_info.name or 'unknown'}  "
+        f"[bold]Issuer:[/bold] {issuer}\n"
+        f"[bold]Endpoints:[/bold] {len(result.provider_info.endpoints)}\n"
+        f"[bold]PKCE supported:[/bold] {'[green]yes[/green]' if result.provider_info.pkce_supported else '[red]no[/red]'}  "
+        f"[bold]Implicit flow:[/bold] {'[red]yes[/red]' if result.provider_info.implicit_flow_enabled else '[green]no[/green]'}\n"
+        f"[bold]Vulnerabilities:[/bold] [red]{len(critical)} critical[/red]  "
+        f"[yellow]{len(high)} high[/yellow]  {len(all_vulns)} total  "
+        f"[bold]CVE matches:[/bold] {len(result.cve_matches)}\n"
+        f"[bold]Duration:[/bold] {result.scan_duration:.1f}s\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}",
+        title="[bold cyan]Auth Security Scan Results[/bold cyan]",
+        border_style=panel_color,
+    ))
+
+    if result.provider_info.endpoints:
+        table = Table(title="Discovered Endpoints", show_header=True, header_style="bold blue")
+        table.add_column("Role", style="cyan")
+        table.add_column("URL")
+        for role, url in result.provider_info.endpoints.items():
+            table.add_row(role, url)
+        console.print(table)
+
+    if all_vulns:
+        console.print("\n[bold]Vulnerabilities Found:[/bold]")
+        for vuln in all_vulns:
+            sev_color = {
+                AuthVulnSeverity.CRITICAL: "bold red",
+                AuthVulnSeverity.HIGH: "red",
+                AuthVulnSeverity.MEDIUM: "yellow",
+                AuthVulnSeverity.LOW: "cyan",
+                AuthVulnSeverity.INFO: "dim",
+            }.get(vuln.severity, "white")
+            cve = f" [{vuln.cve_id}]" if vuln.cve_id else ""
+            console.print(
+                f"  [{sev_color}]{vuln.severity.value.upper()}[/{sev_color}] "
+                f"[bold]{vuln.vuln_id}[/bold]{cve}: {vuln.title}"
+            )
+            if vuln.evidence:
+                console.print(f"    [dim]Evidence: {vuln.evidence[:120]}[/dim]")
+            if vuln.llm_reasoning:
+                console.print(
+                    f"    [magenta]LLM ({vuln.llm_confidence:.0%}): {vuln.llm_reasoning[:120]}[/magenta]"
+                )
+            if vuln.remediation:
+                console.print(f"    [green]Fix: {vuln.remediation[:120]}[/green]")
+
+
+# ============================================================================
+# auth-attack — OIDC / OAuth 2.0 / SAML active attacker (gated, authorized)
+# ============================================================================
+
+@main.command("auth-attack")
+@click.argument("target")
+@click.option("--i-have-authorization", "authorized", is_flag=True, default=False, required=True,
+              help="REQUIRED: Confirms you have explicit written authorization to test this target.")
+@click.option(
+    "--protocol",
+    type=click.Choice(["auto", "oidc", "oauth2", "saml"]),
+    default="auto",
+    show_default=True,
+)
+@click.option("--mode", type=click.Choice(["safe", "deep"]), default="safe", show_default=True,
+              help="safe: redirect/state/PKCE probes. deep: full suite including JWT/SAML/JWKS attacks.")
+@click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE")
+@click.option("--timeout", default=15.0, show_default=True)
+@click.option("--format", "output_format", type=click.Choice(["console", "json"]),
+              default="console", show_default=True)
+@click.option("--output", "-o", type=click.Path(), default=None)
+@click.option("--llm-judge", "use_judge", is_flag=True, default=False,
+              help="Use LLM judge (auto-detected provider) to enrich attack findings.")
+def auth_attack(target, authorized, protocol, mode, extra_headers, timeout,
+                output_format, output, use_judge):
+    """Perform authorized active security testing against an OIDC, OAuth 2.0, or SAML endpoint.
+
+    \b
+    ⚠  WARNING: This command sends active attack payloads.
+    Only use against targets you own or have explicit written permission to test.
+
+    \b
+    Examples:
+        offsec-ai auth-attack https://auth.example.com --i-have-authorization
+        offsec-ai auth-attack https://auth.example.com --i-have-authorization --mode deep
+        offsec-ai auth-attack https://auth.example.com --i-have-authorization --llm-judge -o report.json
+    """
+    if not authorized:
+        console.print(
+            "[bold red]⚠  --i-have-authorization flag is required.[/bold red]\n"
+            "Only use this module against auth servers you own or have "
+            "explicit written permission to test."
+        )
+        raise SystemExit(1)
+
+    report, judge_provider = asyncio.run(_run_auth_attack(
+        target=target, authorized=authorized, protocol=protocol, mode=mode,
+        extra_headers=list(extra_headers), timeout=timeout,
+        output_format=output_format, output=output, use_judge=use_judge,
+    ))
+
+    if output_format == "console" and judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
+
+
+async def _run_auth_attack(
+    target, authorized, protocol, mode, extra_headers, timeout,
+    output_format, output, use_judge=False
+) -> tuple[AuthAttackReport, str | None]:
+    headers: dict[str, str] = {}
+    for h in extra_headers:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+
+    judge = None
+    judge_provider = None
+    if use_judge:
+        judge = LLMJudge.from_env()
+        if not judge.is_available():
+            console.print("[yellow]Warning: --llm-judge set but no provider found. "
+                          "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
+            judge = None
+        else:
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
+            judge_provider = judge.provider
+
+    # Phase 1: passive scan to guide attacks
+    console.print(f"[cyan]Phase 1: Passive scan of {target}\u2026[/cyan]")
+    scanner = AuthScanner(
+        target=target, protocol=protocol, headers=headers, timeout=timeout
+    )
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Scanning\u2026", total=None)
+        scan_result = await scanner.scan()
+        progress.stop_task(task)
+
+    if scan_result.error and not scan_result.provider_info.endpoints:
+        console.print(f"[yellow]Warning: passive scan inconclusive \u2014 {scan_result.error}[/yellow]")
+        console.print("[yellow]Proceeding with guessed endpoint paths.[/yellow]")
+
+    # Phase 2: active attack
+    console.print(f"\n[yellow]Phase 2: Attacking in [{mode.upper()}] mode\u2026[/yellow]")
+
+    try:
+        attacker = AuthAttacker(authorized=True, judge=judge)
+    except Exception as exc:
+        console.print(f"[bold red]Error:[/bold red] {exc}")
+        raise SystemExit(1) from exc
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task(f"Running {mode} attack suite\u2026", total=None)
+        report: AuthAttackReport = await attacker.attack(
+            target=target,
+            mode=mode,
+            protocol=protocol,
+            headers=headers,
+            timeout=timeout,
+            scan_result=scan_result,
+        )
+        progress.stop_task(task)
+
+    if output_format == "json" or output:
+        data = report.model_dump(mode="json")
+        if output:
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Results saved to {output}[/green]")
+        if output_format == "json":
+            console.print_json(json.dumps(data, default=str))
+        return report, judge_provider
+
+    _display_auth_attack_report(report, judge_provider)
+    return report, judge_provider
+
+
+def _display_auth_attack_report(report: AuthAttackReport, judge_provider: str | None = None) -> None:
+    """Render an AuthAttackReport to the console."""
+    triggered = report.triggered_results
+    panel_color = "red" if triggered else "green"
+
+    console.print(Panel(
+        f"[bold]Target:[/bold] {report.target}\n"
+        f"[bold]Protocol:[/bold] {report.protocol.value.upper()}\n"
+        f"[bold]Mode:[/bold] {report.attacks_run} attacks run\n"
+        f"[bold]Triggered:[/bold] [{'red' if triggered else 'green'}]{len(triggered)}[/{'red' if triggered else 'green'}]\n"
+        f"[bold]Duration:[/bold] {report.scan_duration:.1f}s\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}",
+        title="[bold red]Auth Attack Report[/bold red]",
+        border_style=panel_color,
+    ))
+
+    if not report.results:
+        console.print("[dim]No attacks were executed.[/dim]")
+        return
+
+    sev_color_map = {
+        AuthVulnSeverity.CRITICAL: "bold red",
+        AuthVulnSeverity.HIGH: "yellow",
+        AuthVulnSeverity.MEDIUM: "orange3",
+        AuthVulnSeverity.LOW: "blue",
+        AuthVulnSeverity.INFO: "dim",
+    }
+
+    atk_table = Table(
+        title="Attack Results",
+        show_header=True,
+        header_style="bold magenta",
+        show_lines=True,
+    )
+    atk_table.add_column("ID", style="cyan", no_wrap=True)
+    atk_table.add_column("Severity", justify="center")
+    atk_table.add_column("Result", justify="center")
+    atk_table.add_column("Description")
+
+    for r in sorted(report.results, key=lambda x: (not x.triggered, x.attack_id)):
+        color = sev_color_map.get(r.severity, "white")
+        result_str = (
+            "[bold red]TRIGGERED[/bold red]" if r.triggered
+            else "[green]clean[/green]"
+        )
+        atk_table.add_row(
+            r.attack_id,
+            f"[{color}]{r.severity.value.upper()}[/{color}]",
+            result_str,
+            r.title,
+        )
+    console.print(atk_table)
+
+    for r in triggered:
+        if r.evidence:
+            console.print(f"\n[bold red]▶ {r.attack_id}[/bold red]: {r.evidence[:200]}")
 
