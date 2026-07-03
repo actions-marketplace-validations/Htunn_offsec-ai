@@ -278,7 +278,7 @@ class AuthScanner:
         """
         try:
             # Reject XXE: ET does not expand external entities by default in CPython
-            root = ET.fromstring(xml_text)  # noqa: S314
+            root = ET.fromstring(xml_text)  # noqa: S314  # nosec B314 — SAML metadata from known endpoint; ET does not expand external entities in CPython
         except ET.ParseError as exc:
             logger.debug("SAML XML parse error: %s", exc)
             return False

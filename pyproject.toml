@@ -239,4 +239,8 @@ skips = [
     "B501",  # requests with verify=False — intentional in security scanners
     "B105",  # hardcoded_password_string — false positives in payload strings
     "B106",  # hardcoded_password_funcarg
+    "B110",  # try_except_pass — intentional: scanners must not crash on single-probe failures
+    "B112",  # try_except_continue — intentional: iteration continues after failed probe
+    "B404",  # subprocess import — required by cert-chain and mcp-scan features
+    "B405",  # xml.etree import — controlled SAML parsing; XXE mitigated by CPython defaults
 ]

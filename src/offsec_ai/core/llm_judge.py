@@ -170,7 +170,7 @@ class LLMJudge:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 — URL is hardcoded to api.generativeai.google.com
             raw = json.loads(resp.read())
         text = raw["candidates"][0]["content"]["parts"][0]["text"]
         return json.loads(text)

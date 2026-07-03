@@ -233,7 +233,7 @@ class CertificateAnalyzer:
         
         # Generate fingerprints
         cert_der = cert.public_bytes(serialization.Encoding.DER)
-        fingerprint_sha1 = hashlib.sha1(cert_der).hexdigest().upper()
+        fingerprint_sha1 = hashlib.sha1(cert_der, usedforsecurity=False).hexdigest().upper()  # nosec B324 — display fingerprint only
         fingerprint_sha256 = hashlib.sha256(cert_der).hexdigest().upper()
         
         # Validity dates
