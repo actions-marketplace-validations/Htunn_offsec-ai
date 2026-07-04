@@ -61,7 +61,7 @@ jobs:
         uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: scan
-          target: example.com
+          target: https://www.simpleportchecker.com
           timeout: "20"
           output-file: port-report.json
           extra-args: "--ports 80,443,8080,8443"
@@ -71,7 +71,7 @@ jobs:
         uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: l7-check
-          target: example.com
+          target: https://www.simpleportchecker.com
           timeout: "20"
           output-file: l7-report.json
 
@@ -80,7 +80,7 @@ jobs:
         uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: cert-check
-          target: example.com
+          target: https://www.simpleportchecker.com
           timeout: "20"
           output-file: cert-report.json
 
@@ -163,7 +163,7 @@ jobs:
         uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: full-scan
-          target: example.com
+          target: https://www.simpleportchecker.com
           timeout: "30"
           output-file: full-report.json
           fail-on-findings: "false" # set "true" to block on findings
