@@ -1,12 +1,11 @@
-# Example: How to use the offsec-ai GitHub Action in your own workflow
+# offsec-ai GitHub Action — example workflow
 #
-# Copy this file into your repository at .github/workflows/security-scan.yml
-# and adjust the targets/inputs to match your environment.
+# Copy relevant jobs into your own repository's .github/workflows/ folder.
 #
 # The action is published at: https://github.com/Htunn/offsec-ai
 # Use it with:  uses: Htunn/offsec-ai@v2.5.2
 
-name: Security Scan with offsec-ai
+name: offsec-ai Security Scan
 
 on:
   push:
@@ -93,20 +92,18 @@ jobs:
           retention-days: 30
 
   # ---------------------------------------------------------------------------
-  # Example 3: MCP Server scan
+  # Example 3: MCP Server scan against a public MCP endpoint
   # ---------------------------------------------------------------------------
   mcp-scan:
     name: MCP Server Scan
     runs-on: ubuntu-latest
-    # Only run if the MCP endpoint secret is configured
-    if: ${{ vars.MCP_TARGET != '' }}
     steps:
       - name: Scan MCP server
         id: mcp
         uses: Htunn/offsec-ai@v2.5.2
         with:
           scan-type: mcp-scan
-          target: ${{ vars.MCP_TARGET }} # e.g. http://mcp.internal:6277/mcp
+          target: https://mcp.simpleportchecker.com/mcp
           timeout: "30"
           output-file: mcp-report.json
           fail-on-findings: "false"
@@ -124,7 +121,7 @@ jobs:
           path: mcp-report.json
 
   # ---------------------------------------------------------------------------
-  # Example 4: AI/LLM OWASP scan (requires API key secret)
+  # Example 4: AI/LLM OWASP scan (requires LLM_ENDPOINT var and OPENAI_API_KEY secret)
   # ---------------------------------------------------------------------------
   ai-owasp-scan:
     name: AI/LLM OWASP Scan
@@ -161,7 +158,6 @@ jobs:
   security-gate:
     name: Security Gate (Full Scan)
     runs-on: ubuntu-latest
-    # Example: run this as a required check before production deployment
     steps:
       - name: Full security scan
         id: full
