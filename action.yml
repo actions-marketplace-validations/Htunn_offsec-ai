@@ -120,24 +120,18 @@ runs:
         REPORT="${{ inputs.output-file }}"
         SCAN_TYPE="${{ inputs.scan-type }}"
 
-        # Commands that support --format / -f flag
-        FORMAT_SUPPORTED="owasp-scan ai-owasp-scan mcp-scan k8s-scan openclaw-scan auth-scan"
-
-        # Build format and output args
-        OUTPUT_ARGS="-o ${{ inputs.output-file }}"
-        if echo "$FORMAT_SUPPORTED" | grep -qw "$SCAN_TYPE"; then
-          # mcp-scan / k8s-scan / openclaw-scan / auth-scan use --format; owasp-scan / ai-owasp-scan use -f
-          case "$SCAN_TYPE" in
-            owasp-scan|ai-owasp-scan)
-              FORMAT_ARG="-f ${{ inputs.output-format }}"
-              ;;
-            *)
-              FORMAT_ARG="--format ${{ inputs.output-format }}"
-              ;;
-          esac
-        else
-          FORMAT_ARG=""
-        fi
+        # Build format arg — only commands that support it, with correct flag name
+        case "$SCAN_TYPE" in
+          owasp-scan|ai-owasp-scan)
+            FORMAT_ARG="-f ${{ inputs.output-format }}"
+            ;;
+          mcp-scan|k8s-scan|openclaw-scan|auth-scan)
+            FORMAT_ARG="--format ${{ inputs.output-format }}"
+            ;;
+          *)
+            FORMAT_ARG=""
+            ;;
+        esac
 
         offsec-ai "$SCAN_TYPE" \
           "${{ inputs.target }}" \
