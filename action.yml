@@ -133,9 +133,15 @@ runs:
             ;;
         esac
 
+        # ai-owasp-scan does not accept --timeout
+        case "$SCAN_TYPE" in
+          ai-owasp-scan) TIMEOUT_ARG="" ;;
+          *)             TIMEOUT_ARG="--timeout ${{ inputs.timeout }}" ;;
+        esac
+
         offsec-ai "$SCAN_TYPE" \
           "${{ inputs.target }}" \
-          --timeout "${{ inputs.timeout }}" \
+          $TIMEOUT_ARG \
           $FORMAT_ARG \
           $OUTPUT_ARGS \
           ${{ inputs.extra-args }}
