@@ -61,7 +61,8 @@ inputs:
   api-key:
     description: >
       API key for LLM-powered scans (ai-owasp-scan). Passed as the OPENAI_API_KEY
-      environment variable. Use a GitHub secret: ${{ secrets.OPENAI_API_KEY }}.
+      environment variable. Pass your secret using the secrets context in the
+      calling workflow, e.g. api-key: ${{ "secrets.OPENAI_API_KEY" }}.
     required: false
     default: ""
 
