@@ -3,7 +3,7 @@
 # Copy relevant jobs into your own repository's .github/workflows/ folder.
 #
 # The action is published at: https://github.com/Htunn/offsec-ai
-# Use it with:  uses: Htunn/offsec-ai@v2.5.7
+# Use it with:  uses: Htunn/offsec-ai@v2.5.8
 
 name: offsec-ai Security Scan
 
@@ -25,12 +25,12 @@ jobs:
     name: OWASP Web Scan
     runs-on: ubuntu-latest
     steps:
-      - name: Run OWASP scan against example.com
+      - name: Run OWASP scan against simpleportchecker.com
         id: owasp
-        uses: Htunn/offsec-ai@v2.5.7
+        uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: owasp-scan
-          target: example.com
+          target: https://www.simpleportchecker.com
           timeout: "30"
           output-format: json
           output-file: owasp-report.json
@@ -58,7 +58,7 @@ jobs:
     steps:
       - name: Port scan
         id: port
-        uses: Htunn/offsec-ai@v2.5.7
+        uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: scan
           target: example.com
@@ -68,7 +68,7 @@ jobs:
 
       - name: L7 protection detection
         id: l7
-        uses: Htunn/offsec-ai@v2.5.7
+        uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: l7-check
           target: example.com
@@ -77,7 +77,7 @@ jobs:
 
       - name: TLS certificate analysis
         id: cert
-        uses: Htunn/offsec-ai@v2.5.7
+        uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: cert-check
           target: example.com
@@ -100,7 +100,7 @@ jobs:
     steps:
       - name: Scan MCP server
         id: mcp
-        uses: Htunn/offsec-ai@v2.5.7
+        uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: mcp-scan
           target: https://mcp.simpleportchecker.com/mcp
@@ -130,7 +130,7 @@ jobs:
     steps:
       - name: Scan Gemini endpoint for OWASP LLM Top 10 (2025)
         id: ai-owasp
-        uses: Htunn/offsec-ai@v2.5.7
+        uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: ai-owasp-scan
           target: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
@@ -160,7 +160,7 @@ jobs:
     steps:
       - name: Full security scan
         id: full
-        uses: Htunn/offsec-ai@v2.5.7
+        uses: Htunn/offsec-ai@v2.5.8
         with:
           scan-type: full-scan
           target: example.com

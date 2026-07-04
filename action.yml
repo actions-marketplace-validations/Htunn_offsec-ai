@@ -121,11 +121,12 @@ runs:
         SCAN_TYPE="${{ inputs.scan-type }}"
 
         # Build format arg — only commands that support it, with correct flag name
+        # owasp-scan: has -f alias; all others use --format
         case "$SCAN_TYPE" in
-          owasp-scan|ai-owasp-scan)
+          owasp-scan)
             FORMAT_ARG="-f ${{ inputs.output-format }}"
             ;;
-          mcp-scan|k8s-scan|openclaw-scan|auth-scan)
+          ai-owasp-scan|mcp-scan|k8s-scan|openclaw-scan|auth-scan)
             FORMAT_ARG="--format ${{ inputs.output-format }}"
             ;;
           *)
