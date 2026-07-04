@@ -87,7 +87,7 @@ outputs:
     value: ${{ steps.scan.outputs.findings-count }}
 
   report-json:
-    description: Full JSON scan report as a string (first 65 kB).
+    description: Full JSON scan report as a base64-encoded string (first 65 kB). Decode with `base64 -d`.
     value: ${{ steps.scan.outputs.report-json }}
 
 runs:
@@ -118,12 +118,32 @@ runs:
         set +e   # don't exit on non-zero; we handle exit codes below
 
         REPORT="${{ inputs.output-file }}"
+        SCAN_TYPE="${{ inputs.scan-type }}"
 
-        offsec-ai ${{ inputs.scan-type }} \
+        # Commands that support --format / -f flag
+        FORMAT_SUPPORTED="owasp-scan ai-owasp-scan mcp-scan k8s-scan openclaw-scan auth-scan"
+
+        # Build format and output args
+        OUTPUT_ARGS="-o ${{ inputs.output-file }}"
+        if echo "$FORMAT_SUPPORTED" | grep -qw "$SCAN_TYPE"; then
+          # mcp-scan / k8s-scan / openclaw-scan / auth-scan use --format; owasp-scan / ai-owasp-scan use -f
+          case "$SCAN_TYPE" in
+            owasp-scan|ai-owasp-scan)
+              FORMAT_ARG="-f ${{ inputs.output-format }}"
+              ;;
+            *)
+              FORMAT_ARG="--format ${{ inputs.output-format }}"
+              ;;
+          esac
+        else
+          FORMAT_ARG=""
+        fi
+
+        offsec-ai "$SCAN_TYPE" \
           "${{ inputs.target }}" \
           --timeout "${{ inputs.timeout }}" \
-          -f "${{ inputs.output-format }}" \
-          -o "${{ inputs.output-file }}" \
+          $FORMAT_ARG \
+          $OUTPUT_ARGS \
           ${{ inputs.extra-args }}
 
         EXIT_CODE=$?
@@ -135,7 +155,7 @@ runs:
         # Parse findings count and risk level from JSON when available
         FINDINGS_COUNT=0
         RISK_LEVEL=""
-        if [ -f "$REPORT" ] && [ "${{ inputs.output-format }}" = "json" ]; then
+        if [ -f "$REPORT" ]; then
           FINDINGS_COUNT=$(python3 -c "
         import json, sys
         try:
@@ -162,21 +182,16 @@ runs:
         except Exception:
             print('')
         ")
-          REPORT_JSON=$(python3 -c "
-        import json, sys
+          # Write report-json output using base64 to avoid delimiter collisions
+          REPORT_B64=$(python3 -c "
+        import base64, sys
         try:
-            with open('$REPORT') as f:
-                content = f.read(65536)
-            print(content)
+            with open('$REPORT', 'rb') as f:
+                print(base64.b64encode(f.read(65536)).decode())
         except Exception:
-            print('{}')
+            print('')
         ")
-          printf '%s' "$REPORT_JSON" > /tmp/_offsec_ai_report_json
-          {
-            echo 'report-json<<OFFSEC_EOF'
-            cat /tmp/_offsec_ai_report_json
-            echo 'OFFSEC_EOF'
-          } >> "$GITHUB_OUTPUT"
+          echo "report-json=${REPORT_B64}" >> "$GITHUB_OUTPUT"
         fi
 
         echo "findings-count=${FINDINGS_COUNT}" >> "$GITHUB_OUTPUT"
