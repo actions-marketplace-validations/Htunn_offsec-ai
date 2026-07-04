@@ -1,7 +1,6 @@
 name: offsec-ai Security Scanner
-description: >
-  Run AI-powered offensive security scans (OWASP, MCP, Kubernetes, OpenClaw,
-  port, L7, mTLS, cert, auth) directly inside your GitHub Actions workflow.
+description: >-
+  AI-powered offensive security scanner: OWASP, MCP, K8s, OpenClaw, port, L7, mTLS, cert, and auth scans in your CI pipeline.
 author: Htunn
 
 branding:
