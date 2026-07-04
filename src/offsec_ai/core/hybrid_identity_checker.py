@@ -122,6 +122,7 @@ class HybridIdentityChecker:
         federation_metadata_found = False
         azure_ad_detected = False
         openid_config_found = False
+        has_hybrid_identity = False
         error = None
         dns_records = {}
         

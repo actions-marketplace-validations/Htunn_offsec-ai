@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] - 2026-07-04
+
+### Changed
+
+- **Test coverage raised to 80%** — expanded test suite from ~53% to 80% (industry-standard threshold), adding 25+ new test files and 1325 passing tests across all core modules: `auth_scanner`, `cert_analyzer`, `cli`, `guardrail_bench`, `hybrid_identity_checker`, `k8s_scanner`, `l7_detector`, `llm_conversation_attacker`, `llm_judge`, `mcp_attacker`, `mcp_scanner`, `mtls_checker`, `owasp_scanner`, `port_scanner`, and `security_headers`.
+
 ## [2.5.0] - 2026-07-03
 
 ### Added

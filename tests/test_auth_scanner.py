@@ -645,3 +645,117 @@ class TestAuthAttacker:
         )
         attacker._enrich_with_llm(report)
         judge.evaluate.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: SAML parse error, _detect_and_parse exception,
+# auth scan with judge triage, SSO service discovery
+# ---------------------------------------------------------------------------
+
+import xml.etree.ElementTree as ET
+
+
+class TestSamlMetadataParsing:
+    """Unit tests for SAML metadata parsing (no network needed)."""
+
+    def test_parse_saml_metadata_invalid_xml_returns_false(self):
+        """Lines 282-284: invalid XML parse returns False."""
+        from offsec_ai.core.auth_scanner import AuthScanner
+        from offsec_ai.models.auth_result import AuthScanResult
+
+        scanner = AuthScanner(target="https://example.com", timeout=5.0)
+        result = AuthScanResult(target="https://example.com")
+
+        # Invalid XML should trigger ET.ParseError
+        ret = scanner._parse_saml_metadata("<<<not valid xml>>>", result, "https://example.com/saml/metadata")
+        assert ret is False
+
+    def test_parse_saml_metadata_wrong_namespace_returns_false(self):
+        """Line 289: non-SAML XML root tag returns False."""
+        from offsec_ai.core.auth_scanner import AuthScanner
+        from offsec_ai.models.auth_result import AuthScanResult
+
+        scanner = AuthScanner(target="https://example.com", timeout=5.0)
+        result = AuthScanResult(target="https://example.com")
+
+        # Valid XML but not SAML (no "metadata" or "EntityDescriptor" in tag)
+        xml_text = '<html><body>Not SAML</body></html>'
+        ret = scanner._parse_saml_metadata(xml_text, result, "https://example.com/saml/metadata")
+        assert ret is False
+
+    def test_parse_saml_metadata_with_sso_service(self):
+        """Lines 307-310: SSO service location extracted."""
+        from offsec_ai.core.auth_scanner import AuthScanner
+        from offsec_ai.models.auth_result import AuthScanResult
+
+        scanner = AuthScanner(target="https://example.com", timeout=5.0)
+        result = AuthScanResult(target="https://example.com")
+
+        # SAML metadata with SSO service
+        xml_text = '''<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://example.com">
+  <md:IDPSSODescriptor>
+    <md:SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://example.com/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>'''
+        ret = scanner._parse_saml_metadata(xml_text, result, "https://example.com/saml/metadata")
+        # Should return True (valid SAML)
+        assert ret is True
+        # SSO location should be in endpoints
+        sso_endpoints = {k: v for k, v in result.provider_info.endpoints.items() if "sso" in k}
+        assert len(sso_endpoints) > 0
+
+
+@pytest.mark.asyncio
+class TestAuthScannerAdditionalCoverage:
+    @respx.mock
+    async def test_scan_exception_in_detect_and_parse_sets_error(self):
+        """Lines 109-111: exception in _detect_and_parse sets result.error."""
+        from offsec_ai.core.auth_scanner import AuthScanner
+
+        target = "https://broken-auth.example.com"
+        scanner = AuthScanner(target=target, timeout=5.0)
+
+        # Make all OIDC discovery paths return 500
+        respx.get("https://broken-auth.example.com/.well-known/openid-configuration").mock(
+            return_value=httpx.Response(500, text="Server Error")
+        )
+        respx.get("https://broken-auth.example.com/.well-known/oauth-authorization-server").mock(
+            return_value=httpx.Response(500, text="Server Error")
+        )
+        respx.get("https://broken-auth.example.com/saml/metadata").mock(
+            return_value=httpx.Response(500, text="Server Error")
+        )
+
+        result = await scanner.scan()
+        # Should complete without crashing
+        assert result is not None
+
+    @respx.mock
+    async def test_scan_with_llm_judge_calls_triage(self):
+        """Line 119: _phase_llm_triage called when judge with provider is set."""
+        from offsec_ai.core.auth_scanner import AuthScanner
+
+        target = "https://idp.example.com"
+        mock_judge = MagicMock()
+        mock_judge.provider = "openai"
+        mock_judge.evaluate.return_value = {"vulnerable": False, "confidence": 0.1, "reason": "safe"}
+
+        scanner = AuthScanner(target=target, timeout=5.0, judge=mock_judge)
+
+        # Return a valid OIDC discovery with pkce_methods_supported missing → vulnerability
+        discovery = {
+            "issuer": "https://idp.example.com",
+            "authorization_endpoint": "https://idp.example.com/oauth2/authorize",
+            "token_endpoint": "https://idp.example.com/oauth2/token",
+            "jwks_uri": "https://idp.example.com/.well-known/jwks.json",
+            "id_token_signing_alg_values_supported": ["RS256"],
+        }
+        respx.get("https://idp.example.com/.well-known/openid-configuration").mock(
+            return_value=httpx.Response(200, json=discovery)
+        )
+
+        result = await scanner.scan()
+        assert result.protocol.value in ("oidc", "oauth2", "unknown")

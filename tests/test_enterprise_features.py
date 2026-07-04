@@ -134,12 +134,22 @@ class TestOffsecConfig:
         assert get_config().log_level == "WARNING"
 
     def test_no_keys_configured_by_default(self):
-        from offsec_ai.config import get_config
-        cfg = get_config()
-        assert not cfg.has_any_llm_key()
-        assert not cfg.has_openai()
-        assert not cfg.has_anthropic()
-        assert not cfg.has_gemini()
+        import os
+        from unittest.mock import patch
+        from offsec_ai.config import reset_config, get_config
+        key_vars = [
+            "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY",
+            "OFFSEC_OPENAI_API_KEY", "OFFSEC_ANTHROPIC_API_KEY", "OFFSEC_GEMINI_API_KEY",
+        ]
+        clean_env = {k: v for k, v in os.environ.items() if k not in key_vars}
+        with patch.dict(os.environ, clean_env, clear=True):
+            reset_config()
+            cfg = get_config()
+            assert not cfg.has_any_llm_key()
+            assert not cfg.has_openai()
+            assert not cfg.has_anthropic()
+            assert not cfg.has_gemini()
+        reset_config()
 
     def test_key_not_leaked_in_repr(self):
         from offsec_ai.config import OffsecConfig
@@ -156,9 +166,19 @@ class TestOffsecConfig:
         assert cfg.has_openai() is True
 
     def test_missing_key_helper_returns_none(self):
+        import os
+        from unittest.mock import patch
         from offsec_ai.config import OffsecConfig
-        cfg = OffsecConfig()
-        assert cfg.openai_key_value() is None
+        key_vars = [
+            "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY",
+            "OFFSEC_OPENAI_API_KEY", "OFFSEC_ANTHROPIC_API_KEY", "OFFSEC_GEMINI_API_KEY",
+        ]
+        clean_env = {k: v for k, v in os.environ.items() if k not in key_vars}
+        with patch.dict(os.environ, clean_env, clear=True):
+            cfg = OffsecConfig()
+            assert cfg.openai_key_value() is None
+            assert cfg.anthropic_key_value() is None
+            assert cfg.gemini_key_value() is None
 
     def test_reset_clears_singleton(self):
         from offsec_ai.config import get_config, reset_config

@@ -154,7 +154,7 @@ def audit_log(
             "event": event,
             "target": target,
             "mode": mode,
-            "module": module,
+            "src_module": module,
             "correlation_id": get_correlation_id(),
             **(extra or {}),
         },
