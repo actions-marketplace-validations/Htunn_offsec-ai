@@ -4,7 +4,7 @@
 # and adjust the targets/inputs to match your environment.
 #
 # The action is published at: https://github.com/Htunn/offsec-ai
-# Use it with:  uses: Htunn/offsec-ai@v2.5.1
+# Use it with:  uses: Htunn/offsec-ai@v2.5.2
 
 name: Security Scan with offsec-ai
 
@@ -14,8 +14,8 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: "0 3 * * 1"   # Every Monday at 03:00 UTC
-  workflow_dispatch:        # Allow manual trigger
+    - cron: "0 3 * * 1" # Every Monday at 03:00 UTC
+  workflow_dispatch: # Allow manual trigger
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
     steps:
       - name: Run OWASP scan against example.com
         id: owasp
-        uses: Htunn/offsec-ai@v2.5.1
+        uses: Htunn/offsec-ai@v2.5.2
         with:
           scan-type: owasp-scan
           target: example.com
@@ -61,7 +61,7 @@ jobs:
     steps:
       - name: Port scan
         id: port
-        uses: Htunn/offsec-ai@v2.5.1
+        uses: Htunn/offsec-ai@v2.5.2
         with:
           scan-type: scan
           target: example.com
@@ -71,7 +71,7 @@ jobs:
 
       - name: L7 protection detection
         id: l7
-        uses: Htunn/offsec-ai@v2.5.1
+        uses: Htunn/offsec-ai@v2.5.2
         with:
           scan-type: l7-check
           target: example.com
@@ -80,7 +80,7 @@ jobs:
 
       - name: TLS certificate analysis
         id: cert
-        uses: Htunn/offsec-ai@v2.5.1
+        uses: Htunn/offsec-ai@v2.5.2
         with:
           scan-type: cert-check
           target: example.com
@@ -105,10 +105,10 @@ jobs:
     steps:
       - name: Scan MCP server
         id: mcp
-        uses: Htunn/offsec-ai@v2.5.1
+        uses: Htunn/offsec-ai@v2.5.2
         with:
           scan-type: mcp-scan
-          target: ${{ vars.MCP_TARGET }}   # e.g. http://mcp.internal:6277/mcp
+          target: ${{ vars.MCP_TARGET }} # e.g. http://mcp.internal:6277/mcp
           timeout: "30"
           output-file: mcp-report.json
           fail-on-findings: "false"
@@ -136,10 +136,10 @@ jobs:
     steps:
       - name: Scan LLM endpoint for OWASP LLM Top 10 (2025)
         id: ai-owasp
-        uses: Htunn/offsec-ai@v2.5.1
+        uses: Htunn/offsec-ai@v2.5.2
         with:
           scan-type: ai-owasp-scan
-          target: ${{ vars.LLM_ENDPOINT }}   # e.g. https://api.example.com/v1/chat/completions
+          target: ${{ vars.LLM_ENDPOINT }} # e.g. https://api.example.com/v1/chat/completions
           api-key: ${{ secrets.OPENAI_API_KEY }}
           timeout: "45"
           output-file: ai-owasp-report.json
@@ -167,13 +167,13 @@ jobs:
     steps:
       - name: Full security scan
         id: full
-        uses: Htunn/offsec-ai@v2.5.1
+        uses: Htunn/offsec-ai@v2.5.2
         with:
           scan-type: full-scan
           target: example.com
           timeout: "30"
           output-file: full-report.json
-          fail-on-findings: "false"   # set "true" to block on findings
+          fail-on-findings: "false" # set "true" to block on findings
 
       - name: Security gate result
         run: |
