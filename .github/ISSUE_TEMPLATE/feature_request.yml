@@ -1,0 +1,62 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for offsec-ai
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe your use case so we can understand the need.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What are you trying to do that isn't currently possible?
+      placeholder: "I'm trying to scan X but offsec-ai doesn't support..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you'd like. Include CLI flags, API changes, or output format changes if relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any workarounds or alternative approaches you've considered.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature Area
+      description: Which part of offsec-ai does this relate to?
+      multiple: true
+      options:
+        - Auth Scanner
+        - MCP Scanner / Attacker
+        - OWASP Scanner
+        - AI OWASP Scanner
+        - K8s Scanner / Attacker
+        - mTLS Checker
+        - L7 Detector
+        - LLM Judge
+        - Cert Analyzer
+        - Hybrid Identity Checker
+        - OpenClaw
+        - CLI / Output
+        - Exporters
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, references, or examples.
