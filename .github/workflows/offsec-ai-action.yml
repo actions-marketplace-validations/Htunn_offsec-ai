@@ -121,20 +121,19 @@ jobs:
           path: mcp-report.json
 
   # ---------------------------------------------------------------------------
-  # Example 4: AI/LLM OWASP scan (requires LLM_ENDPOINT var and GEMINI_API_KEY secret)
+  # Example 4: AI/LLM OWASP scan using the Gemini public endpoint
+  # Requires: GEMINI_API_KEY repository secret
   # ---------------------------------------------------------------------------
   ai-owasp-scan:
     name: AI/LLM OWASP Scan
     runs-on: ubuntu-latest
-    # Only run if the LLM endpoint variable is configured
-    if: ${{ vars.LLM_ENDPOINT != '' }}
     steps:
-      - name: Scan LLM endpoint for OWASP LLM Top 10 (2025)
+      - name: Scan Gemini endpoint for OWASP LLM Top 10 (2025)
         id: ai-owasp
         uses: Htunn/offsec-ai@v2.5.6
         with:
           scan-type: ai-owasp-scan
-          target: ${{ vars.LLM_ENDPOINT }} # e.g. https://api.example.com/v1/chat/completions
+          target: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
           api-key: ${{ secrets.GEMINI_API_KEY }}
           timeout: "45"
           output-file: ai-owasp-report.json
