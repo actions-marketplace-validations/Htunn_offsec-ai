@@ -140,6 +140,8 @@ runs:
           *)             TIMEOUT_ARG="--timeout ${{ inputs.timeout }}" ;;
         esac
 
+        OUTPUT_ARGS="-o ${{ inputs.output-file }}"
+
         offsec-ai "$SCAN_TYPE" \
           "${{ inputs.target }}" \
           $TIMEOUT_ARG \
