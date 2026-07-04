@@ -1,0 +1,207 @@
+name: offsec-ai Security Scanner
+description: >
+  Run AI-powered offensive security scans (OWASP, MCP, Kubernetes, OpenClaw,
+  port, L7, mTLS, cert, auth) directly inside your GitHub Actions workflow.
+author: Htunn
+
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  scan-type:
+    description: >
+      Scan command to run. One of: scan, l7-check, cert-check, mtls-check,
+      owasp-scan, ai-owasp-scan, mcp-scan, k8s-scan, openclaw-scan,
+      auth-scan, full-scan.
+    required: true
+
+  target:
+    description: >
+      Target hostname, IP address, or URL to scan.
+      For mcp-scan / ai-owasp-scan, use a full URL (e.g. https://api.example.com/v1/chat/completions).
+    required: true
+
+  version:
+    description: >
+      Version of offsec-ai to install from PyPI.
+      Defaults to "latest" (always installs the newest release).
+    required: false
+    default: latest
+
+  timeout:
+    description: Per-request timeout in seconds.
+    required: false
+    default: "30"
+
+  output-format:
+    description: >
+      Output format for the scan report. One of: json, csv, table.
+      Defaults to json (required for the report-json output).
+    required: false
+    default: json
+
+  output-file:
+    description: Path to save the scan report. Defaults to offsec-ai-report.json.
+    required: false
+    default: offsec-ai-report.json
+
+  extra-args:
+    description: >
+      Additional CLI arguments passed verbatim to the scan command.
+      Examples: "--categories A01,A02" / "--ports 443,8443" / "--mode deep"
+    required: false
+    default: ""
+
+  fail-on-findings:
+    description: >
+      Set to "true" to fail the workflow step when any findings are detected.
+    required: false
+    default: "false"
+
+  api-key:
+    description: >
+      API key for LLM-powered scans (ai-owasp-scan). Passed as the OPENAI_API_KEY
+      environment variable. Use a GitHub secret: ${{ secrets.OPENAI_API_KEY }}.
+    required: false
+    default: ""
+
+  python-version:
+    description: Python version to use on the runner.
+    required: false
+    default: "3.12"
+
+outputs:
+  report-path:
+    description: Absolute path to the generated scan report file.
+    value: ${{ steps.scan.outputs.report-path }}
+
+  risk-level:
+    description: >
+      Top-level risk level string from the scan result (e.g. CRITICAL, HIGH,
+      MEDIUM, LOW, INFO). Empty string when not available for the scan type.
+    value: ${{ steps.scan.outputs.risk-level }}
+
+  findings-count:
+    description: Number of findings / vulnerabilities detected.
+    value: ${{ steps.scan.outputs.findings-count }}
+
+  report-json:
+    description: Full JSON scan report as a string (first 65 kB).
+    value: ${{ steps.scan.outputs.report-json }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install offsec-ai
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip --quiet
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          pip install offsec-ai --quiet
+        else
+          pip install "offsec-ai==${{ inputs.version }}" --quiet
+        fi
+        echo "Installed: $(offsec-ai --version)"
+
+    - name: Run ${{ inputs.scan-type }} scan
+      id: scan
+      shell: bash
+      env:
+        OPENAI_API_KEY: ${{ inputs.api-key }}
+      run: |
+        set +e   # don't exit on non-zero; we handle exit codes below
+
+        REPORT="${{ inputs.output-file }}"
+
+        offsec-ai ${{ inputs.scan-type }} \
+          "${{ inputs.target }}" \
+          --timeout "${{ inputs.timeout }}" \
+          -f "${{ inputs.output-format }}" \
+          -o "${{ inputs.output-file }}" \
+          ${{ inputs.extra-args }}
+
+        EXIT_CODE=$?
+
+        # Absolute path for consumers of the output
+        ABS_REPORT="$(realpath "$REPORT" 2>/dev/null || echo "$REPORT")"
+        echo "report-path=${ABS_REPORT}" >> "$GITHUB_OUTPUT"
+
+        # Parse findings count and risk level from JSON when available
+        FINDINGS_COUNT=0
+        RISK_LEVEL=""
+        if [ -f "$REPORT" ] && [ "${{ inputs.output-format }}" = "json" ]; then
+          FINDINGS_COUNT=$(python3 -c "
+        import json, sys
+        try:
+            d = json.load(open('$REPORT'))
+            for key in ('findings', 'vulnerabilities', 'results', 'categories'):
+                v = d.get(key)
+                if isinstance(v, list):
+                    print(len(v))
+                    sys.exit(0)
+            print(0)
+        except Exception:
+            print(0)
+        ")
+          RISK_LEVEL=$(python3 -c "
+        import json, sys
+        try:
+            d = json.load(open('$REPORT'))
+            for key in ('risk_level', 'overall_risk', 'severity'):
+                v = d.get(key)
+                if v:
+                    print(str(v).upper())
+                    sys.exit(0)
+            print('')
+        except Exception:
+            print('')
+        ")
+          REPORT_JSON=$(python3 -c "
+        import json, sys
+        try:
+            with open('$REPORT') as f:
+                content = f.read(65536)
+            print(content)
+        except Exception:
+            print('{}')
+        ")
+          printf '%s' "$REPORT_JSON" > /tmp/_offsec_ai_report_json
+          {
+            echo 'report-json<<OFFSEC_EOF'
+            cat /tmp/_offsec_ai_report_json
+            echo 'OFFSEC_EOF'
+          } >> "$GITHUB_OUTPUT"
+        fi
+
+        echo "findings-count=${FINDINGS_COUNT}" >> "$GITHUB_OUTPUT"
+        echo "risk-level=${RISK_LEVEL}"         >> "$GITHUB_OUTPUT"
+
+        # Summary
+        {
+          echo "## offsec-ai Scan Results"
+          echo ""
+          echo "| Field | Value |"
+          echo "|-------|-------|"
+          echo "| Scan type | \`${{ inputs.scan-type }}\` |"
+          echo "| Target | \`${{ inputs.target }}\` |"
+          echo "| Risk level | \`${RISK_LEVEL:-n/a}\` |"
+          echo "| Findings | ${FINDINGS_COUNT} |"
+          echo "| Report | \`${ABS_REPORT}\` |"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        # Honour fail-on-findings
+        if [ "${{ inputs.fail-on-findings }}" = "true" ] && [ "$FINDINGS_COUNT" -gt "0" ]; then
+          echo "::error::offsec-ai found ${FINDINGS_COUNT} finding(s) — failing as requested by fail-on-findings=true"
+          exit 1
+        fi
+
+        # Propagate non-zero exit only for genuine errors (not empty-result scans)
+        if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 1 ]; then
+          exit $EXIT_CODE
+        fi
