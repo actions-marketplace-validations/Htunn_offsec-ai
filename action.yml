@@ -60,9 +60,9 @@ inputs:
 
   api-key:
     description: >
-      API key for LLM-powered scans (ai-owasp-scan). Passed as the OPENAI_API_KEY
-      environment variable. Pass your secret using the secrets context in the
-      calling workflow, e.g. api-key: ${{ "secrets.OPENAI_API_KEY" }}.
+      Gemini API key for LLM-powered scans (ai-owasp-scan). Passed as the
+      GEMINI_API_KEY environment variable. In your workflow, set api-key to
+      your repository secret (recommended: GEMINI_API_KEY).
     required: false
     default: ""
 
@@ -113,7 +113,7 @@ runs:
       id: scan
       shell: bash
       env:
-        OPENAI_API_KEY: ${{ inputs.api-key }}
+        GEMINI_API_KEY: ${{ inputs.api-key }}
       run: |
         set +e   # don't exit on non-zero; we handle exit codes below
 

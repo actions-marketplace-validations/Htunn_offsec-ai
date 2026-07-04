@@ -121,7 +121,7 @@ jobs:
           path: mcp-report.json
 
   # ---------------------------------------------------------------------------
-  # Example 4: AI/LLM OWASP scan (requires LLM_ENDPOINT var and OPENAI_API_KEY secret)
+  # Example 4: AI/LLM OWASP scan (requires LLM_ENDPOINT var and GEMINI_API_KEY secret)
   # ---------------------------------------------------------------------------
   ai-owasp-scan:
     name: AI/LLM OWASP Scan
@@ -135,7 +135,7 @@ jobs:
         with:
           scan-type: ai-owasp-scan
           target: ${{ vars.LLM_ENDPOINT }} # e.g. https://api.example.com/v1/chat/completions
-          api-key: ${{ secrets.OPENAI_API_KEY }}
+          api-key: ${{ secrets.GEMINI_API_KEY }}
           timeout: "45"
           output-file: ai-owasp-report.json
           extra-args: "--mode safe"
