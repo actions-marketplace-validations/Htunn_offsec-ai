@@ -128,6 +128,8 @@ pip install -e ".[dev]"
 
 ```bash
 docker run --rm htunnthuthu/offsec-ai:latest --help
+# or from GitHub Container Registry
+docker run --rm ghcr.io/htunn/offsec-ai:latest --help
 ```
 
 ---
@@ -1120,28 +1122,42 @@ Commands:
 
 ## Docker
 
+The image is published to two registries on every version tag:
+
+| Registry | Image |
+|----------|-------|
+| Docker Hub | `htunnthuthu/offsec-ai` |
+| GitHub Container Registry | `ghcr.io/htunn/offsec-ai` |
+
 ```bash
+# Docker Hub
 docker run --rm htunnthuthu/offsec-ai:latest ai-owasp-scan https://api.example.com/v1/chat/completions
 docker run --rm htunnthuthu/offsec-ai:latest mcp-scan https://mcp.example.com/mcp
+docker run --rm htunnthuthu/offsec-ai:latest a2a-scan https://agent.example.com
 docker run --rm htunnthuthu/offsec-ai:latest scan example.com
 docker run --rm htunnthuthu/offsec-ai:latest owasp-scan example.com
 
+# GitHub Container Registry (ghcr.io) — no Docker Hub account required
+docker run --rm ghcr.io/htunn/offsec-ai:latest ai-owasp-scan https://api.example.com/v1/chat/completions
+docker run --rm ghcr.io/htunn/offsec-ai:latest a2a-scan https://agent.example.com
+docker run --rm ghcr.io/htunn/offsec-ai:latest scan example.com
+
 # Save output to host
-docker run --rm -v $(pwd):/app/output htunnthuthu/offsec-ai:latest \
+docker run --rm -v $(pwd):/app/output ghcr.io/htunn/offsec-ai:latest \
   ai-owasp-scan https://api.example.com/v1/chat/completions \
   --output /app/output/llm-report.json
 
 # LLM Judge — openai, anthropic, or gemini key auto-detected; no extra install needed
 docker run --rm \
   -e OPENAI_API_KEY=sk-... \
-  htunnthuthu/offsec-ai:latest \
+  ghcr.io/htunn/offsec-ai:latest \
   ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
 
 # Custom OpenAI-compatible backend (Ollama, LM Studio, Azure OpenAI…)
 docker run --rm \
   -e OFFSEC_LLM_BASE_URL=http://host.docker.internal:11434/v1 \
   -e OFFSEC_LLM_MODEL=llama3 \
-  htunnthuthu/offsec-ai:latest \
+  ghcr.io/htunn/offsec-ai:latest \
   ai-owasp-scan https://api.example.com/v1/chat/completions --llm-judge
 ```
 
