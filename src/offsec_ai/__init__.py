@@ -44,6 +44,8 @@ from .core.security_headers import SecurityHeaderChecker
 from .core.ai_owasp_scanner import LLMOwaspScanner
 from .core.mcp_scanner import MCPScanner
 from .core.mcp_attacker import MCPAttacker
+from .core.a2a_scanner import A2AScanner
+from .core.a2a_attacker import A2AAttacker
 from .core.llm_judge import LLMJudge
 from .exceptions import (
     AuthorizationRequired,
@@ -73,6 +75,15 @@ from .models.mcp_result import (
     MCPAttackReport,
     MCPAttackResult,
     MCPTransport,
+)
+from .models.a2a_result import (
+    A2AScanResult,
+    A2AAgentCard,
+    A2ASkill,
+    A2AVulnerability,
+    A2AAttackReport,
+    A2AAttackResult,
+    A2AVulnSeverity,
 )
 from .core.k8s_scanner import K8sScanner
 from .core.k8s_attacker import K8sAttacker
@@ -114,6 +125,9 @@ __all__ = [
     # New MCP modules
     "MCPScanner",
     "MCPAttacker",
+    # A2A (Agent-to-Agent) modules
+    "A2AScanner",
+    "A2AAttacker",
     # Exceptions
     "OffsecError",
     "ScanError",
@@ -153,6 +167,14 @@ __all__ = [
     "MCPAttackReport",
     "MCPAttackResult",
     "MCPTransport",
+    # A2A result models
+    "A2AScanResult",
+    "A2AAgentCard",
+    "A2ASkill",
+    "A2AVulnerability",
+    "A2AAttackReport",
+    "A2AAttackResult",
+    "A2AVulnSeverity",
     # Kubernetes modules
     "K8sScanner",
     "K8sAttacker",

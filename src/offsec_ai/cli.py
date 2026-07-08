@@ -37,6 +37,8 @@ from .core.owasp_scanner import OwaspScanner
 from .core.ai_owasp_scanner import LLMOwaspScanner
 from .core.mcp_scanner import MCPScanner
 from .core.mcp_attacker import MCPAttacker
+from .core.a2a_scanner import A2AScanner
+from .core.a2a_attacker import A2AAttacker
 from .core.openclaw_scanner import OpenClawScanner
 from .core.openclaw_attacker import OpenClawAttacker
 from .core.llm_conversation_attacker import LLMConversationAttacker
@@ -53,6 +55,7 @@ from .models.mtls_result import MTLSResult, BatchMTLSResult
 from .models.owasp_result import OwaspScanResult, SeverityLevel
 from .models.ai_owasp_result import LLMScanResult, LLMScanMode, LLMSeverity
 from .models.mcp_result import MCPScanResult, MCPAttackReport, MCPVulnSeverity
+from .models.a2a_result import A2AScanResult, A2AAttackReport, A2AVulnSeverity
 from .models.openclaw_result import (
     OpenClawScanResult,
     OpenClawAttackReport,
@@ -4194,3 +4197,314 @@ def _display_auth_attack_report(report: AuthAttackReport, judge_provider: str | 
         if r.evidence:
             console.print(f"\n[bold red]▶ {r.attack_id}[/bold red]: {r.evidence[:200]}")
 
+
+# ============================================================================
+# a2a-scan — A2A (Agent-to-Agent) protocol endpoint security scanner
+# ============================================================================
+
+@main.command("a2a-scan")
+@click.argument("target")
+@click.option("--port", "-p", default=None, type=int,
+              help="Override port (for non-standard ports).")
+@click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE",
+              help="Extra HTTP headers, e.g. --header 'Authorization:Bearer <token>'")
+@click.option("--timeout", default=15.0, show_default=True, help="Request timeout (seconds).")
+@click.option("--no-tls-verify", "no_tls_verify", is_flag=True, default=False,
+              help="Disable TLS certificate verification (for self-signed certs).")
+@click.option("--format", "output_format", type=click.Choice(["console", "json"]),
+              default="console", show_default=True)
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Save JSON result to file.")
+@click.option("--llm-judge", "use_judge", is_flag=True, default=False,
+              help="Use LLM judge (auto-detected provider) to enrich findings.")
+def a2a_scan(target, port, extra_headers, timeout, no_tls_verify, output_format, output, use_judge):
+    """Scan an A2A (Agent-to-Agent) protocol endpoint for security vulnerabilities.
+
+    TARGET is the base URL of the A2A agent (e.g. https://agent.example.com).
+    The scanner fetches the Agent Card from /.well-known/agent-card.json,
+    analyzes security schemes, declared capabilities, and probes task endpoints.
+
+    \b
+    Examples:
+        offsec-ai a2a-scan https://agent.example.com
+        offsec-ai a2a-scan https://agent.example.com --format json --output report.json
+        offsec-ai a2a-scan https://agent.example.com --header 'Authorization:Bearer tok'
+    """
+    judge_provider = asyncio.run(_run_a2a_scan(
+        target=target, port=port, extra_headers=list(extra_headers),
+        timeout=timeout, no_tls_verify=no_tls_verify,
+        output_format=output_format, output=output, use_judge=use_judge,
+    ))
+    if output_format == "console" and judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
+
+
+async def _run_a2a_scan(target, port, extra_headers, timeout, no_tls_verify,
+                         output_format, output, use_judge=False):
+    headers = {}
+    for h in extra_headers:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+
+    judge = None
+    judge_provider: str | None = None
+    if use_judge:
+        judge = LLMJudge.from_env()
+        if not judge.is_available():
+            console.print("[yellow]Warning: --llm-judge set but no provider found. "
+                          "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
+            judge = None
+        else:
+            judge_provider = judge.provider
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
+
+    scanner = A2AScanner(
+        target=target,
+        port=port,
+        headers=headers,
+        timeout=timeout,
+        verify_tls=not no_tls_verify,
+        judge=judge,
+    )
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Scanning A2A agent {target}...", total=None)
+        result: A2AScanResult = await scanner.scan()
+        progress.stop_task(task)
+
+    if result.error:
+        console.print(f"[bold red]Error:[/bold red] {result.error}")
+        if output:
+            import json
+            data = result.model_dump(mode="json")
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Partial results saved to {output}[/green]")
+        return judge_provider
+
+    if output_format == "json" or output:
+        import json
+        data = result.model_dump(mode="json")
+        if output:
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Results saved to {output}[/green]")
+        if output_format == "json":
+            console.print_json(json.dumps(data, default=str))
+        return judge_provider
+
+    _display_a2a_scan_result(result, judge_provider=judge_provider)
+    return judge_provider
+
+
+def _display_a2a_scan_result(result: A2AScanResult, judge_provider: str | None = None) -> None:
+    card = result.agent_card
+    all_vulns = result.all_vulns
+    critical = [v for v in all_vulns if v.severity == A2AVulnSeverity.CRITICAL]
+    high = [v for v in all_vulns if v.severity == A2AVulnSeverity.HIGH]
+
+    panel_color = "red" if critical else ("yellow" if high else "green")
+    auth_label = "[red]NONE[/red]" if result.auth_posture.unauthenticated_access else "[green]Required[/green]"
+    console.print(Panel(
+        f"[bold]Target:[/bold] {result.target}\n"
+        f"[bold]Agent:[/bold] {card.name} v{card.version}\n"
+        f"[bold]Provider:[/bold] {card.provider_organization or '—'}\n"
+        f"[bold]Bindings:[/bold] {', '.join(result.server_info.supported_bindings) or '—'}\n"
+        f"[bold]Auth:[/bold] {auth_label} "
+        f"({result.auth_posture.auth_type})\n"
+        f"[bold]Skills:[/bold] {len(card.skills)}  "
+        f"[bold]Signed:[/bold] {'[green]yes[/green]' if card.is_signed else '[red]no[/red]'}  "
+        f"[bold]Push notifications:[/bold] {'yes' if card.capabilities.push_notifications else 'no'}\n"
+        f"[bold]Vulnerabilities:[/bold] [red]{len(critical)} critical[/red]  "
+        f"[yellow]{len(high)} high[/yellow]  {len(all_vulns)} total  "
+        f"[bold]CVE matches:[/bold] {len(result.cve_matches)}\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}\n"
+        f"[bold]Duration:[/bold] {result.scan_duration:.1f}s",
+        title="[bold cyan]A2A Security Scan Results[/bold cyan]",
+        border_style=panel_color,
+    ))
+
+    if card.skills:
+        table = Table(title="Agent Skills", show_header=True, header_style="bold blue")
+        table.add_column("ID", style="dim")
+        table.add_column("Name", style="cyan")
+        table.add_column("Risky?", justify="center")
+        table.add_column("Description (truncated)")
+        for skill in card.skills:
+            risky = "[red]YES[/red]" if skill.has_dangerous_keywords else "[green]no[/green]"
+            table.add_row(skill.id, skill.name, risky, skill.description[:80])
+        console.print(table)
+
+    if all_vulns:
+        console.print("\n[bold]Vulnerabilities Found:[/bold]")
+        for vuln in all_vulns:
+            sev_color = {
+                A2AVulnSeverity.CRITICAL: "bold red",
+                A2AVulnSeverity.HIGH: "red",
+                A2AVulnSeverity.MEDIUM: "yellow",
+                A2AVulnSeverity.LOW: "cyan",
+            }.get(vuln.severity, "white")
+            cve = f" [{vuln.cve_id}]" if vuln.cve_id else ""
+            console.print(
+                f"  [{sev_color}]{vuln.severity.value.upper()}[/{sev_color}] "
+                f"[bold]{vuln.vuln_id}[/bold]{cve}: {vuln.title}"
+            )
+            if vuln.evidence:
+                console.print(f"    [dim]Evidence: {vuln.evidence[:100]}[/dim]")
+            if vuln.remediation:
+                console.print(f"    [green]Fix: {vuln.remediation[:100]}[/green]")
+            if vuln.llm_reasoning:
+                console.print(
+                    f"    [magenta]LLM ({vuln.llm_confidence:.0%}): {vuln.llm_reasoning[:120]}[/magenta]"
+                )
+    else:
+        console.print("\n[green]No vulnerabilities found.[/green]")
+
+
+# ============================================================================
+# a2a-attack — A2A endpoint attacker (gated, authorized use only)
+# ============================================================================
+
+@main.command("a2a-attack")
+@click.argument("target")
+@click.option("--i-have-authorization", "authorized", is_flag=True, default=False, required=True,
+              help="REQUIRED: Confirms you have explicit written authorization to test this target.")
+@click.option("--mode", type=click.Choice(["safe", "deep"]), default="safe", show_default=True,
+              help="safe: auth-bypass probes only. deep: full suite including SSRF/injection.")
+@click.option("--header", "extra_headers", multiple=True, metavar="KEY:VALUE")
+@click.option("--timeout", default=15.0, show_default=True)
+@click.option("--no-tls-verify", "no_tls_verify", is_flag=True, default=False,
+              help="Disable TLS certificate verification.")
+@click.option("--format", "output_format", type=click.Choice(["console", "json"]),
+              default="console", show_default=True)
+@click.option("--output", "-o", type=click.Path(), default=None)
+@click.option("--llm-judge", "use_judge", is_flag=True, default=False,
+              help="Use LLM judge (auto-detected provider) to enrich attack findings.")
+def a2a_attack(target, authorized, mode, extra_headers, timeout, no_tls_verify,
+               output_format, output, use_judge):
+    """Perform authorized active security testing against an A2A agent endpoint.
+
+    \b
+    ⚠  WARNING: This command sends active attack payloads.
+    Only run against systems you have EXPLICIT WRITTEN AUTHORIZATION to test.
+    Unauthorized use is illegal.
+
+    \b
+    Required flag: --i-have-authorization
+
+    Recommend running a2a-scan first to enumerate the target before attacking:
+        offsec-ai a2a-scan https://agent.example.com
+        offsec-ai a2a-attack https://agent.example.com --i-have-authorization --mode deep
+    """
+    if not authorized:
+        console.print("[bold red]Error:[/bold red] --i-have-authorization flag is required. "
+                      "Only use this against systems you are authorized to test.")
+        raise SystemExit(1)
+
+    asyncio.run(_run_a2a_attack(
+        target=target, mode=mode, extra_headers=list(extra_headers),
+        timeout=timeout, no_tls_verify=no_tls_verify,
+        output_format=output_format, output=output, use_judge=use_judge,
+    ))
+
+
+async def _run_a2a_attack(target, mode, extra_headers, timeout, no_tls_verify,
+                           output_format, output, use_judge=False):
+    headers = {}
+    for h in extra_headers:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+
+    judge = None
+    judge_provider: str | None = None
+    if use_judge:
+        judge = LLMJudge.from_env()
+        if not judge.is_available():
+            console.print("[yellow]Warning: --llm-judge set but no provider found. "
+                          "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.[/yellow]")
+            judge = None
+        else:
+            judge_provider = judge.provider
+            console.print("[bold cyan]LLM judge enabled.[/bold cyan]")
+
+    # Run a reconnaissance scan first to guide endpoint selection
+    scan_result = None
+    if mode == "deep":
+        console.print("[cyan]Running reconnaissance scan first...[/cyan]")
+        scanner = A2AScanner(target=target, headers=headers, timeout=timeout,
+                              verify_tls=not no_tls_verify)
+        try:
+            scan_result = await scanner.scan()
+        except Exception:
+            pass
+
+    attacker = A2AAttacker(authorized=True, judge=judge)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Attacking A2A agent {target} ({mode} mode)...", total=None)
+        report: A2AAttackReport = await attacker.attack(
+            target=target,
+            mode=mode,
+            headers=headers,
+            timeout=timeout,
+            verify_tls=not no_tls_verify,
+            scan_result=scan_result,
+        )
+        progress.stop_task(task)
+
+    if output_format == "json" or output:
+        import json
+        data = report.model_dump(mode="json")
+        if output:
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"[green]Results saved to {output}[/green]")
+        if output_format == "json":
+            console.print_json(json.dumps(data, default=str))
+        return
+
+    _display_a2a_attack_report(report, judge_provider=judge_provider)
+    if judge_provider:
+        console.print(f"[dim]LLM Judge powered by: [bold green]{judge_provider}[/bold green][/dim]")
+
+
+def _display_a2a_attack_report(report: A2AAttackReport, judge_provider: str | None = None) -> None:
+    triggered = report.successful_attacks
+    panel_color = "red" if triggered else "green"
+
+    console.print(Panel(
+        f"[bold]Target:[/bold] {report.target}\n"
+        f"[bold]Attacks run:[/bold] {report.attacks_run}  "
+        f"[bold]Triggered:[/bold] [{'red' if triggered else 'green'}]{report.attacks_triggered}[/{'red' if triggered else 'green'}]\n"
+        f"[bold]LLM Judge:[/bold] {judge_provider if judge_provider else 'Disabled'}\n"
+        f"[bold]Duration:[/bold] {report.scan_duration:.1f}s\n"
+        f"[dim]{report.authorization_note}[/dim]",
+        title="[bold red]A2A Attack Report[/bold red]",
+        border_style=panel_color,
+    ))
+
+    if triggered:
+        console.print("\n[bold red]Triggered Attacks:[/bold red]")
+        for r in triggered:
+            sev_color = {
+                A2AVulnSeverity.CRITICAL: "bold red",
+                A2AVulnSeverity.HIGH: "red",
+                A2AVulnSeverity.MEDIUM: "yellow",
+            }.get(r.severity, "white")
+            console.print(
+                f"  [{sev_color}]{r.severity.value.upper()}[/{sev_color}] "
+                f"[bold]{r.attack_id}[/bold] ({r.attack_type}): {r.title}"
+            )
+            if r.evidence:
+                console.print(f"    [dim]Evidence: {r.evidence[:120]}[/dim]")
+    else:
+        console.print("\n[green]No attacks triggered. Target appears resilient to tested probes.[/green]")

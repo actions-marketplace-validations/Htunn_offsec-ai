@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-07-08
+
+### Added
+
+- **A2A (Agent-to-Agent) Protocol Security** — full support for Google's open A2A standard (a2a-protocol.org v1.0.0):
+  - `A2AScanner` — 8-phase passive assessment: fetches Agent Card (`/.well-known/agent-card.json`), parses skills/capabilities/security schemes, probes auth posture via unauthenticated `SendMessage` JSON-RPC, performs static analysis, matches CVEs, and optionally triages findings via LLM judge
+  - `A2AAttacker` — authorization-gated active testing with **safe mode** (auth-bypass probes) and **deep mode** (auth bypass + SSRF webhook + message injection + task enumeration + JSON-RPC manipulation)
+  - `src/offsec_ai/models/a2a_result.py` — Pydantic models: `A2AScanResult`, `A2AAgentCard`, `A2ASkill`, `A2ACapabilities`, `A2AAuthPosture`, `A2AVulnerability`, `A2AAttackReport`, `A2AAttackResult`, `A2AVulnSeverity`
+  - `src/offsec_ai/utils/a2a_cve_db.py` — 10 A2A security advisories (A2A-ADV-2025-001 through 010); regex-based secret scanner; dangerous-keyword scanner for skill descriptions
+  - `src/offsec_ai/utils/a2a_payloads.py` — 22 attack payloads across 5 categories: auth bypass, SSRF webhook, message injection, task enumeration, JSON-RPC manipulation
+  - `a2a-scan` CLI command with `--port`, `--header`, `--timeout`, `--no-tls-verify`, `--format`, `--output`, `--llm-judge` options
+  - `a2a-attack` CLI command with `--i-have-authorization` (required), `--mode safe|deep`, and the same output options
+  - All A2A types exported from `offsec_ai` package `__all__`
+  - 58 new tests in `tests/test_a2a_scanner.py` covering CVE DB, payloads, models, scanner static analysis, HTTP-mocked integration, and attacker
+
+### Changed
+
+- `README.md` updated with v2.6.0 feature table, full A2A section (security checks, advisory database, CLI usage, attack suite, Python API), Quick Start examples, and updated All CLI Commands list
+- Banner tagline updated to `AI/LLM · MCP · A2A · Red-Team`
+- Legal notice updated to include `a2a-attack` in the list of commands requiring `--i-have-authorization`
+
 ## [2.5.1] - 2026-07-04
 
 ### Changed

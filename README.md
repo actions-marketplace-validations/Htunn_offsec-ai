@@ -5,7 +5,7 @@
  ██║   ██║██╔══╝  ██╔══╝  ╚════██║██╔══╝  ██║     ╚════╝██╔══██║██║
  ╚██████╔╝██║     ██║     ███████║███████╗╚██████╗       ██║  ██║██║
   ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚══════╝ ╚═════╝       ╚═╝  ╚═╝╚═╝
-  Offensive-Security Toolkit · AI/LLM · MCP · Red-Team
+  Offensive-Security Toolkit · AI/LLM · MCP · A2A · Red-Team
 ```
 
 <p align="center">
@@ -27,11 +27,23 @@
 
 `offsec-ai` is a Python library and CLI that combines classic network reconnaissance with modern AI/LLM security testing. It probes live AI/LLM endpoints for the [OWASP LLM Top 10](https://owasp.org/www-project-top-10-for-large-language-model-applications/), scans and actively attacks [Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers for known CVEs, and performs full-stack infrastructure security assessments.
 
-> **Legal Notice**: Active attack features (`mcp-attack`, `openclaw-attack`, `k8s-attack`, `auth-attack`, deep mode) require the `--i-have-authorization` flag. Only use against systems you own or have explicit written permission to test.
+> **Legal Notice**: Active attack features (`mcp-attack`, `openclaw-attack`, `k8s-attack`, `auth-attack`, `a2a-attack`, deep mode) require the `--i-have-authorization` flag. Only use against systems you own or have explicit written permission to test.
 
 ---
 
 ## Features
+
+### New in v2.6.0 — A2A (Agent-to-Agent) Protocol Security
+
+| Feature | Description |
+|---------|-------------|
+| 🤝 **A2A Scanner** | Fetches the Agent Card (`/.well-known/agent-card.json`), parses declared skills/capabilities/security schemes, probes authentication posture, and runs 8-phase static analysis against 10 A2A security advisories |
+| 🔐 **Auth Posture Check** | Sends an unauthenticated `SendMessage` JSON-RPC probe to detect open task endpoints; maps `securitySchemes` to OAuth2/OIDC/Bearer/mTLS/apiKey/none |
+| 💀 **Dangerous Skill Detection** | Flags skills whose descriptions contain shell execution keywords (`exec`, `bash`, `eval`, `kubectl`, `docker run`, etc.) — CRITICAL severity |
+| 🔑 **Secret Scanning** | Regex-based scan of the Agent Card JSON for leaked API keys, tokens, and credentials (OpenAI `sk-`, AWS `AKIA`, GitHub `ghp_`, Slack, etc.) |
+| 📋 **10 A2A Advisories** | A2A-ADV-2025-001 through 010 — from missing `securitySchemes` and unauthenticated task access to unsigned Agent Cards, SSRF via push-notification webhooks, and plaintext HTTP endpoints |
+| ⚔️ **A2A Attacker** | Authorized red-team module with **safe mode** (auth-bypass probes) and **deep mode** (auth bypass + SSRF webhook + message injection + task enumeration + JSON-RPC manipulation) |
+| 🤖 **Optional LLM Judge** | Enriches MEDIUM/LOW findings with provider reasoning; shows `LLM Judge: gemini` in the results panel and footer |
 
 ### New in v2.5.0 — Universal LLM Judge "Powered By" + OWASP Web Scanner Judge Support
 
@@ -129,12 +141,19 @@ docker run --rm htunnthuthu/offsec-ai:latest --help
  ██║   ██║██╔══╝  ██╔══╝  ╚════██║██╔══╝  ██║     ╚════╝██╔══██║██║
  ╚██████╔╝██║     ██║     ███████║███████╗╚██████╗       ██║  ██║██║
   ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚══════╝ ╚═════╝       ╚═╝  ╚═╝╚═╝
-  Offensive-Security Toolkit · AI/LLM · MCP · Red-Team
+  Offensive-Security Toolkit · AI/LLM · MCP · A2A · Red-Team
 ```
 
 ### CLI
 
 ```bash
+# A2A (Agent-to-Agent) protocol security
+offsec-ai a2a-scan https://agent.example.com
+offsec-ai a2a-scan https://agent.example.com --llm-judge
+offsec-ai a2a-scan https://agent.example.com --format json --output a2a-report.json
+offsec-ai a2a-attack https://agent.example.com --i-have-authorization
+offsec-ai a2a-attack https://agent.example.com --i-have-authorization --mode deep --llm-judge
+
 # Auth / identity protocol security
 offsec-ai auth-scan https://auth.example.com
 offsec-ai auth-scan https://idp.example.com --protocol saml
@@ -179,8 +198,16 @@ offsec-ai mtls-check example.com
 import asyncio
 from offsec_ai import LLMOwaspScanner, MCPScanner, MCPAttacker, AuthorizationRequired
 from offsec_ai import AuthScanner, AuthAttacker, AuthProtocol
+from offsec_ai import A2AScanner, A2AAttacker
 
 async def main():
+    # A2A agent security scan
+    a2a = A2AScanner("https://agent.example.com")
+    a2a_result = await a2a.scan()
+    print(f"Agent: {a2a_result.agent_card.name}  Skills: {len(a2a_result.agent_card.skills)}")
+    print(f"Auth: {a2a_result.auth_posture.auth_type}  Unauthed: {a2a_result.auth_posture.unauthenticated_access}")
+    print(f"Vulnerabilities: {len(a2a_result.all_vulns)}  Critical: {a2a_result.has_critical}")
+
     # Auth protocol scan (OIDC / OAuth2 / SAML)
     auth = AuthScanner("https://accounts.google.com")
     auth_result = await auth.scan()
@@ -224,6 +251,141 @@ async def main():
         print(f"Attacks run: {report.attacks_run}, triggered: {len(report.triggered_results)}")
     except AuthorizationRequired:
         print("Provide authorized=True to unlock attack mode")
+
+asyncio.run(main())
+```
+
+---
+
+## A2A (Agent-to-Agent) Protocol Security
+
+Scans and actively tests [A2A protocol](https://a2a-protocol.org) agent endpoints for security vulnerabilities. The A2A protocol (Google, 2025) is an open standard enabling AI agents to communicate via JSON-RPC 2.0 over HTTP. Agents publish an **Agent Card** at `/.well-known/agent-card.json` declaring their capabilities, skills, and security schemes.
+
+### Security Checks Performed
+
+| Check ID | Severity | Description |
+|----------|----------|-------------|
+| OFFSEC-A2A-AUTH-001 | **High** | No `securitySchemes` declared in Agent Card |
+| OFFSEC-A2A-AUTH-003 | **High** | Unauthenticated `SendMessage` task accepted |
+| OFFSEC-A2A-INT-001 | Medium | Agent Card not cryptographically signed |
+| OFFSEC-A2A-SEC-001 | **Critical** | Secrets / API keys found in Agent Card JSON |
+| OFFSEC-A2A-SKILL-001 | **Critical** | Skill description contains dangerous execution keywords |
+| OFFSEC-A2A-SSRF-001 | **High** | Push-notification webhooks enabled — SSRF attack surface |
+| OFFSEC-A2A-TLS-001 | **High** | JSON-RPC endpoint served over plaintext HTTP |
+| OFFSEC-A2A-EXT-001 | **High** | Extended Agent Card accessible without authentication |
+
+### Advisory Database
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| A2A-ADV-2025-001 | **High** | No `securitySchemes` — agent accepts unauthenticated requests |
+| A2A-ADV-2025-002 | **High** | Unauthenticated task execution on `tasks/send` |
+| A2A-ADV-2025-003 | Medium | Unsigned Agent Card — integrity not verifiable |
+| A2A-ADV-2025-004 | **Critical** | Secrets / credentials found in Agent Card JSON |
+| A2A-ADV-2025-005 | **Critical** | Dangerous skill keywords (shell execution, kubectl, eval) |
+| A2A-ADV-2025-006 | **High** | Push-notification webhook SSRF risk |
+| A2A-ADV-2025-007 | **High** | JSON-RPC endpoint uses plaintext HTTP |
+| A2A-ADV-2025-008 | **High** | Extended Agent Card accessible without auth |
+| A2A-ADV-2025-009 | Low | No A2A protocol version enforcement |
+| A2A-ADV-2025-010 | Medium | Task IDs predictable — IDOR attack surface |
+
+### CLI Usage
+
+```bash
+# Passive scan — fetch Agent Card and analyze security posture
+offsec-ai a2a-scan https://agent.example.com
+
+# Non-standard port
+offsec-ai a2a-scan https://agent.example.com --port 8443
+
+# With bearer token (authenticated scan)
+offsec-ai a2a-scan https://agent.example.com \
+  --header 'Authorization: Bearer <token>'
+
+# LLM judge enrichment (shows "LLM Judge: gemini" in output)
+offsec-ai a2a-scan https://agent.example.com --llm-judge
+
+# JSON output
+offsec-ai a2a-scan https://agent.example.com --format json --output a2a-scan.json
+
+# Authorized active attack — safe mode (auth-bypass probes)
+offsec-ai a2a-attack https://agent.example.com --i-have-authorization
+
+# Deep mode — auth bypass + SSRF webhook + message injection + task enum + JSON-RPC
+offsec-ai a2a-attack https://agent.example.com \
+  --i-have-authorization --mode deep
+
+# With LLM judge and JSON output
+offsec-ai a2a-attack https://agent.example.com \
+  --i-have-authorization --mode deep --llm-judge \
+  --format json --output a2a-attack.json
+```
+
+### Attack Suite
+
+| Attack | Safe Mode | Deep Mode | Description |
+|--------|-----------|-----------|-------------|
+| Auth Bypass | ✅ | ✅ | No auth header, null/empty Bearer, invalid JWT, X-Forwarded-For spoof, JWT alg=none |
+| SSRF via Webhook | ❌ | ✅ | Push-notification webhook pointed at localhost/IMDS/internal ranges |
+| Message Injection | ❌ | ✅ | Prompt injection payloads in `SendMessage` body |
+| Task Enumeration | ❌ | ✅ | Sequential/predictable task IDs via `GetTask` (IDOR) |
+| JSON-RPC Manipulation | ❌ | ✅ | Oversized `pageSize`, SQL injection in task ID, path-traversal method names |
+
+### Python API
+
+```python
+import asyncio
+from offsec_ai import A2AScanner, A2AAttacker, A2AVulnSeverity
+from offsec_ai.core.llm_judge import LLMJudge
+from offsec_ai.exceptions import AuthorizationRequired
+
+async def main():
+    # Optional LLM judge
+    judge = LLMJudge.from_env()   # reads GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY
+
+    # Passive scan
+    scanner = A2AScanner(
+        target="https://agent.example.com",
+        port=None,              # override port (optional)
+        headers={},             # extra HTTP headers
+        timeout=15.0,
+        verify_tls=True,
+        judge=judge,            # None = rule-based only
+    )
+    result = await scanner.scan()
+
+    print(f"Agent          : {result.agent_card.name} v{result.agent_card.version}")
+    print(f"Provider       : {result.agent_card.provider_organization}")
+    print(f"Skills         : {len(result.agent_card.skills)}")
+    print(f"Auth type      : {result.auth_posture.auth_type}")
+    print(f"Unauthed access: {result.auth_posture.unauthenticated_access}")
+    print(f"Push webhooks  : {result.agent_card.capabilities.push_notifications}")
+    print(f"Card signed    : {result.agent_card.is_signed}")
+    print(f"Vulnerabilities: {len(result.all_vulns)}  Critical: {result.has_critical}")
+
+    for vuln in result.all_vulns:
+        print(f"  [{vuln.severity.value}] {vuln.vuln_id}: {vuln.title}")
+        if vuln.evidence:
+            print(f"    Evidence: {vuln.evidence[:80]}")
+        if vuln.llm_reasoning:
+            print(f"    LLM ({vuln.llm_confidence:.0%}): {vuln.llm_reasoning[:100]}")
+
+    # Authorized active attack
+    try:
+        attacker = A2AAttacker(authorized=True, judge=judge)
+        report = await attacker.attack(
+            target="https://agent.example.com",
+            mode="deep",         # "safe" | "deep"
+            scan_result=result,  # guides SSRF probe (push_notifications check)
+        )
+        print(f"Attacks run     : {report.attacks_run}")
+        print(f"Attacks triggered: {report.attacks_triggered}")
+        for r in report.successful_attacks:
+            print(f"  [{r.severity.value}] {r.attack_id} ({r.attack_type}): {r.title}")
+            if r.evidence:
+                print(f"    Evidence: {r.evidence[:80]}")
+    except AuthorizationRequired:
+        print("Pass authorized=True to unlock attack mode")
 
 asyncio.run(main())
 ```
@@ -931,6 +1093,8 @@ Commands:
   ai-owasp-scan       Probe a live LLM/AI endpoint for AI OWASP Top 10
   mcp-scan            Scan an MCP endpoint for security vulnerabilities
   mcp-attack          Perform authorized active testing against an MCP server
+  a2a-scan            Scan an A2A (Agent-to-Agent) protocol agent for security vulnerabilities
+  a2a-attack          Authorized active attack against an A2A agent endpoint
   openclaw-scan       Five-phase passive security scan of an OpenClaw AI gateway
   openclaw-attack     Authorized active attack against an OpenClaw gateway
   k8s-scan            Black-box Kubernetes cluster security scan (OWASP K8s Top 10)
