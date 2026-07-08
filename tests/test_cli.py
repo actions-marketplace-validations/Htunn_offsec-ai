@@ -983,7 +983,7 @@ class TestDisplayFunctions:
 class TestOwaspDisplayFunctions:
     """Test OWASP scan result display helpers."""
 
-    def _make_owasp_result(self, with_findings=False) -> "OwaspScanResult":
+    def _make_owasp_result(self, with_findings=False):
         from offsec_ai.models.owasp_result import (
             OwaspScanResult, OwaspCategoryResult, OwaspFinding,
             ScanMode, SeverityLevel,
